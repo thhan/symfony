@@ -11,8 +11,8 @@
 
 namespace Symfony\Bridge\Doctrine\Form\ChoiceList;
 
-use Doctrine\Common\Persistence\Mapping\ClassMetadata;
-use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\Persistence\Mapping\ClassMetadata;
+use Doctrine\Persistence\ObjectManager;
 use Symfony\Component\Form\Exception\RuntimeException;
 
 /**
@@ -91,7 +91,7 @@ class IdReader
     public function getIdValue($object)
     {
         if (!$object) {
-            return;
+            return null;
         }
 
         if (!$this->om->contains($object)) {

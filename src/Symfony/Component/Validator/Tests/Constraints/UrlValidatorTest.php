@@ -47,11 +47,9 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedValueException
-     */
     public function testExpectsStringCompatibleType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
         $this->validator->validate(new \stdClass(), new Url());
     }
 
@@ -93,7 +91,8 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     public function getValidRelativeUrls()
     {
         return [
-            ['//google.com'],
+            ['//example.com'],
+            ['//examp_le.com'],
             ['//symfony.fake/blog/'],
             ['//symfony.com/search?type=&q=url+validator'],
         ];
@@ -103,11 +102,13 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     {
         return [
             ['http://a.pl'],
-            ['http://www.google.com'],
-            ['http://www.google.com.'],
-            ['http://www.google.museum'],
-            ['https://google.com/'],
-            ['https://google.com:80/'],
+            ['http://www.example.com'],
+            ['http://www.example.com.'],
+            ['http://www.example.museum'],
+            ['https://example.com/'],
+            ['https://example.com:80/'],
+            ['http://examp_le.com'],
+            ['http://www.sub_domain.examp_le.com'],
             ['http://www.example.coop/'],
             ['http://www.test-example.com/'],
             ['http://www.symfony.com/'],
@@ -151,9 +152,11 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
             ['http://☎.com/'],
             ['http://username:password@symfony.com'],
             ['http://user.name:password@symfony.com'],
+            ['http://user_name:pass_word@symfony.com'],
             ['http://username:pass.word@symfony.com'],
             ['http://user.name:pass.word@symfony.com'],
             ['http://user-name@symfony.com'],
+            ['http://user_name@symfony.com'],
             ['http://symfony.com?'],
             ['http://symfony.com?query=1'],
             ['http://symfony.com/?query=1'],
@@ -168,11 +171,11 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     public function getValidUrlsWithWhitespaces()
     {
         return [
-            ["\x20http://www.google.com"],
-            ["\x09\x09http://www.google.com."],
+            ["\x20http://www.example.com"],
+            ["\x09\x09http://www.example.com."],
             ["http://symfony.fake/blog/\x0A"],
             ["http://symfony.com/search?type=&q=url+validator\x0D\x0D"],
-            ["\x00https://google.com:80\x00"],
+            ["\x00https://example.com:80\x00"],
             ["\x0B\x0Bhttp://username:password@symfony.com\x0B\x0B"],
         ];
     }
@@ -216,10 +219,9 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     public function getInvalidRelativeUrls()
     {
         return [
-            ['/google.com'],
-            ['//goog_le.com'],
-            ['//google.com::aa'],
-            ['//google.com:aa'],
+            ['/example.com'],
+            ['//example.com::aa'],
+            ['//example.com:aa'],
             ['//127.0.0.1:aa/'],
             ['//[::1'],
             ['//hello.☎/'],
@@ -237,15 +239,14 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     public function getInvalidUrls()
     {
         return [
-            ['google.com'],
-            ['://google.com'],
-            ['http ://google.com'],
-            ['http:/google.com'],
-            ['http://goog_le.com'],
-            ['http://google.com::aa'],
-            ['http://google.com:aa'],
-            ['ftp://google.fr'],
-            ['faked://google.fr'],
+            ['example.com'],
+            ['://example.com'],
+            ['http ://example.com'],
+            ['http:/example.com'],
+            ['http://example.com::aa'],
+            ['http://example.com:aa'],
+            ['ftp://example.fr'],
+            ['faked://example.fr'],
             ['http://127.0.0.1:aa/'],
             ['ftp://[::1]/'],
             ['http://[::1'],
@@ -278,7 +279,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     public function getValidCustomUrls()
     {
         return [
-            ['ftp://google.com'],
+            ['ftp://example.com'],
             ['file://127.0.0.1'],
             ['git://[::1]/'],
         ];
@@ -355,7 +356,6 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
     }
 
     /**
-     * @expectedException \Symfony\Component\Validator\Exception\InvalidOptionsException
      * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
      * @group legacy
      * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1. Its false-positive rate is too high to be relied upon.
@@ -363,6 +363,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
      */
     public function testCheckDnsWithInvalidType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\InvalidOptionsException');
         DnsMock::withMockedHosts(['example.com' => [['type' => 'A']]]);
 
         $constraint = new Url([
@@ -389,7 +390,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
 
 class EmailProvider
 {
-    public function __toString()
+    public function __toString(): string
     {
         return '';
     }

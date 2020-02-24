@@ -45,11 +45,11 @@ class AnnotationClassLoaderTest extends AbstractAnnotationLoaderTest
      */
     private $loader;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $reader = new AnnotationReader();
         $this->loader = new class($reader) extends AnnotationClassLoader {
-            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot)
+            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot): void
             {
             }
         };
@@ -125,6 +125,9 @@ class AnnotationClassLoaderTest extends AbstractAnnotationLoaderTest
         $this->assertCount(2, $routes);
         $this->assertEquals('/path', $routes->get('action.en')->getPath());
         $this->assertEquals('/pad', $routes->get('action.nl')->getPath());
+
+        $this->assertEquals('nl', $routes->get('action.nl')->getRequirement('_locale'));
+        $this->assertEquals('en', $routes->get('action.en')->getRequirement('_locale'));
     }
 
     public function testLocalizedPathRoutesWithExplicitPathPropety()
@@ -241,7 +244,7 @@ class AnnotationClassLoaderTest extends AbstractAnnotationLoaderTest
             ->willReturn([])
         ;
         $loader = new class($reader) extends AnnotationClassLoader {
-            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot)
+            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot): void
             {
             }
         };
@@ -323,7 +326,7 @@ class AnnotationClassLoaderTest extends AbstractAnnotationLoaderTest
         ;
 
         $loader = new class($reader) extends AnnotationClassLoader {
-            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot)
+            protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, $annot): void
             {
             }
         };

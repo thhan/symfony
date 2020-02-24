@@ -18,23 +18,21 @@ use Symfony\Component\Security\Core\User\UserInterface;
  *
  * @author Ariel Ferrandini <arielferrandini@gmail.com>
  *
- * @method bool needsRehash(UserInterface $user, string $encoded)
+ * @method bool needsRehash(UserInterface $user)
  */
 interface UserPasswordEncoderInterface
 {
     /**
      * Encodes the plain password.
      *
-     * @param UserInterface $user          The user
-     * @param string        $plainPassword The password to encode
+     * @param string $plainPassword The password to encode
      *
      * @return string The encoded password
      */
     public function encodePassword(UserInterface $user, $plainPassword);
 
     /**
-     * @param UserInterface $user The user
-     * @param string        $raw  A raw password
+     * @param string $raw A raw password
      *
      * @return bool true if the password is valid, false otherwise
      */

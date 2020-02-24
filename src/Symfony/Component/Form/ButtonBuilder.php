@@ -27,7 +27,7 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
     /**
      * @var bool
      */
-    private $disabled;
+    private $disabled = false;
 
     /**
      * @var ResolvedFormTypeInterface
@@ -61,7 +61,7 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
         $this->name = $name;
         $this->options = $options;
 
-        if (preg_match('/^([^a-z0-9_].*)?(.*[^a-zA-Z0-9_\-:].*)?$/D', $name, $matches)) {
+        if (preg_match('/^([^a-zA-Z0-9_].*)?(.*[^a-zA-Z0-9_\-:].*)?$/D', $name, $matches)) {
             if (isset($matches[1])) {
                 @trigger_error(sprintf('Using names for buttons that do not start with a letter, a digit, or an underscore is deprecated since Symfony 4.3 and will throw an exception in 5.0 ("%s" given).', $name), E_USER_DEPRECATED);
             }
@@ -79,10 +79,6 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
      *
      * This method should not be invoked.
      *
-     * @param string|int|FormBuilderInterface $child
-     * @param string|FormTypeInterface        $type
-     * @param array                           $options
-     *
      * @throws BadMethodCallException
      */
     public function add($child, $type = null, array $options = [])
@@ -94,10 +90,6 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
      * Unsupported method.
      *
      * This method should not be invoked.
-     *
-     * @param string                   $name
-     * @param string|FormTypeInterface $type
-     * @param array                    $options
      *
      * @throws BadMethodCallException
      */
@@ -199,8 +191,7 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
      *
      * This method should not be invoked.
      *
-     * @param DataTransformerInterface $viewTransformer
-     * @param bool                     $forcePrepend
+     * @param bool $forcePrepend
      *
      * @throws BadMethodCallException
      */
@@ -226,8 +217,7 @@ class ButtonBuilder implements \IteratorAggregate, FormBuilderInterface
      *
      * This method should not be invoked.
      *
-     * @param DataTransformerInterface $modelTransformer
-     * @param bool                     $forceAppend
+     * @param bool $forceAppend
      *
      * @throws BadMethodCallException
      */

@@ -40,7 +40,7 @@ class ProxyDumper implements DumperInterface
     /**
      * {@inheritdoc}
      */
-    public function isProxyCandidate(Definition $definition)
+    public function isProxyCandidate(Definition $definition): bool
     {
         return ($definition->isLazy() || $definition->hasTag('proxy')) && $this->proxyGenerator->getProxifiedClass($definition);
     }
@@ -48,7 +48,7 @@ class ProxyDumper implements DumperInterface
     /**
      * {@inheritdoc}
      */
-    public function getProxyFactoryCode(Definition $definition, $id, $factoryCode = null)
+    public function getProxyFactoryCode(Definition $definition, $id, $factoryCode = null): string
     {
         $instantiation = 'return';
 
@@ -82,9 +82,10 @@ EOF;
     /**
      * {@inheritdoc}
      */
-    public function getProxyCode(Definition $definition)
+    public function getProxyCode(Definition $definition): string
     {
         $code = $this->classGenerator->generate($this->generateProxyClass($definition));
+        $code = preg_replace('/^(class [^ ]++ extends )([^\\\\])/', '$1\\\\$2', $code);
 
         if (version_compare(self::getProxyManagerVersion(), '2.2', '<')) {
             $code = preg_replace(
@@ -92,6 +93,10 @@ EOF;
                 '${1}'.$this->getIdentifierSuffix($definition),
                 $code
             );
+        }
+
+        if (version_compare(self::getProxyManagerVersion(), '2.5', '<')) {
+            $code = preg_replace('/ \\\\Closure::bind\(function ((?:& )?\(\$instance(?:, \$value)?\))/', ' \Closure::bind(static function \1', $code);
         }
 
         return $code;

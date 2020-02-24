@@ -23,26 +23,22 @@ use Symfony\Component\Cache\Simple\FilesystemCache;
  */
 class ChainCacheTest extends CacheTestCase
 {
-    public function createSimpleCache($defaultLifetime = 0)
+    public function createSimpleCache(int $defaultLifetime = 0): CacheInterface
     {
         return new ChainCache([new ArrayCache($defaultLifetime), new FilesystemCache('', $defaultLifetime)], $defaultLifetime);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Cache\Exception\InvalidArgumentException
-     * @expectedExceptionMessage At least one cache must be specified.
-     */
     public function testEmptyCachesException()
     {
+        $this->expectException('Symfony\Component\Cache\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('At least one cache must be specified.');
         new ChainCache([]);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Cache\Exception\InvalidArgumentException
-     * @expectedExceptionMessage The class "stdClass" does not implement
-     */
     public function testInvalidCacheException()
     {
+        $this->expectException('Symfony\Component\Cache\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('The class "stdClass" does not implement');
         new ChainCache([new \stdClass()]);
     }
 
@@ -67,14 +63,9 @@ class ChainCacheTest extends CacheTestCase
         $this->assertFalse($cache->prune());
     }
 
-    /**
-     * @return \PHPUnit_Framework_MockObject_MockObject|PruneableCacheInterface
-     */
-    private function getPruneableMock()
+    private function getPruneableMock(): CacheInterface
     {
-        $pruneable = $this
-            ->getMockBuilder(PruneableCacheInterface::class)
-            ->getMock();
+        $pruneable = $this->createMock([CacheInterface::class, PruneableInterface::class]);
 
         $pruneable
             ->expects($this->atLeastOnce())
@@ -84,14 +75,9 @@ class ChainCacheTest extends CacheTestCase
         return $pruneable;
     }
 
-    /**
-     * @return \PHPUnit_Framework_MockObject_MockObject|PruneableCacheInterface
-     */
-    private function getFailingPruneableMock()
+    private function getFailingPruneableMock(): CacheInterface
     {
-        $pruneable = $this
-            ->getMockBuilder(PruneableCacheInterface::class)
-            ->getMock();
+        $pruneable = $this->createMock([CacheInterface::class, PruneableInterface::class]);
 
         $pruneable
             ->expects($this->atLeastOnce())
@@ -101,17 +87,8 @@ class ChainCacheTest extends CacheTestCase
         return $pruneable;
     }
 
-    /**
-     * @return \PHPUnit_Framework_MockObject_MockObject|CacheInterface
-     */
-    private function getNonPruneableMock()
+    private function getNonPruneableMock(): CacheInterface
     {
-        return $this
-            ->getMockBuilder(CacheInterface::class)
-            ->getMock();
+        return $this->createMock(CacheInterface::class);
     }
-}
-
-interface PruneableCacheInterface extends PruneableInterface, CacheInterface
-{
 }

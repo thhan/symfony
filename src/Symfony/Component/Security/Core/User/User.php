@@ -45,7 +45,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
         $this->extraFields = $extraFields;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->getUsername();
     }
@@ -53,7 +53,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function getRoles()
+    public function getRoles(): array
     {
         return $this->roles;
     }
@@ -61,7 +61,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function getPassword()
+    public function getPassword(): ?string
     {
         return $this->password;
     }
@@ -69,14 +69,15 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function getSalt()
+    public function getSalt(): ?string
     {
+        return null;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getUsername()
+    public function getUsername(): string
     {
         return $this->username;
     }
@@ -84,7 +85,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function isAccountNonExpired()
+    public function isAccountNonExpired(): bool
     {
         return $this->accountNonExpired;
     }
@@ -92,7 +93,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function isAccountNonLocked()
+    public function isAccountNonLocked(): bool
     {
         return $this->accountNonLocked;
     }
@@ -100,7 +101,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function isCredentialsNonExpired()
+    public function isCredentialsNonExpired(): bool
     {
         return $this->credentialsNonExpired;
     }
@@ -108,7 +109,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function isEnabled()
+    public function isEnabled(): bool
     {
         return $this->enabled;
     }
@@ -128,7 +129,7 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
     /**
      * {@inheritdoc}
      */
-    public function isEqualTo(UserInterface $user)
+    public function isEqualTo(UserInterface $user): bool
     {
         if (!$user instanceof self) {
             return false;
@@ -139,6 +140,13 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
         }
 
         if ($this->getSalt() !== $user->getSalt()) {
+            return false;
+        }
+
+        $currentRoles = array_map('strval', (array) $this->getRoles());
+        $newRoles = array_map('strval', (array) $user->getRoles());
+        $rolesChanged = \count($currentRoles) !== \count($newRoles) || \count($currentRoles) !== \count(array_intersect($currentRoles, $newRoles));
+        if ($rolesChanged) {
             return false;
         }
 
@@ -163,5 +171,10 @@ final class User implements UserInterface, EquatableInterface, AdvancedUserInter
         }
 
         return true;
+    }
+
+    public function setPassword(string $password)
+    {
+        $this->password = $password;
     }
 }

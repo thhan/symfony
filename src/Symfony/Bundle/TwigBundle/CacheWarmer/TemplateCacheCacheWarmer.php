@@ -73,7 +73,7 @@ class TemplateCacheCacheWarmer implements CacheWarmerInterface, ServiceSubscribe
 
         foreach ($templates as $template) {
             try {
-                $twig->loadTemplate($template);
+                $twig->load($template);
             } catch (Error $e) {
                 // problem during compilation, give up
             }
@@ -102,13 +102,8 @@ class TemplateCacheCacheWarmer implements CacheWarmerInterface, ServiceSubscribe
 
     /**
      * Find templates in the given directory.
-     *
-     * @param string $namespace The namespace for these templates
-     * @param string $dir       The folder where to look for templates
-     *
-     * @return array An array of templates
      */
-    private function findTemplatesInFolder($namespace, $dir)
+    private function findTemplatesInFolder(?string $namespace, string $dir): array
     {
         if (!is_dir($dir)) {
             return [];

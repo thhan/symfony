@@ -5,8 +5,12 @@ CHANGELOG
 -----
 
  * added InvalidTtlException  
- * deprecated `Symfony\Component\Lock\StoreInterface` in favor of `Symfony\Component\Lock\BlockingStoreInterface` and `Symfony\Component\Lock\PersistStoreInterface`
-   
+ * deprecated `StoreInterface` in favor of `BlockingStoreInterface` and `PersistingStoreInterface`
+ * `Factory` is deprecated, use `LockFactory` instead
+ * `StoreFactory::createStore` allows PDO and Zookeeper DSN. 
+ * deprecated services `lock.store.flock`, `lock.store.semaphore`, `lock.store.memcached.abstract` and `lock.store.redis.abstract`, 
+   use `StoreFactory::createStore` instead.
+    
 4.2.0
 -----
 

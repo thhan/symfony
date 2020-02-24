@@ -208,8 +208,6 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      *
      * @deprecated since Symfony 4.2
      *
-     * @param callable $circularReferenceHandler
-     *
      * @return self
      */
     public function setCircularReferenceHandler(callable $circularReferenceHandler)
@@ -318,7 +316,7 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      */
     protected function handleCircularReference($object/*, string $format = null, array $context = []*/)
     {
-        if (\func_num_args() < 2 && __CLASS__ !== \get_class($this) && __CLASS__ !== (new \ReflectionMethod($this, __FUNCTION__))->getDeclaringClass()->getName() && !$this instanceof \PHPUnit\Framework\MockObject\MockObject && !$this instanceof \Prophecy\Prophecy\ProphecySubjectInterface) {
+        if (\func_num_args() < 2 && __CLASS__ !== static::class && __CLASS__ !== (new \ReflectionMethod($this, __FUNCTION__))->getDeclaringClass()->getName() && !$this instanceof \PHPUnit\Framework\MockObject\MockObject && !$this instanceof \Prophecy\Prophecy\ProphecySubjectInterface) {
             @trigger_error(sprintf('The "%s()" method will have two new "string $format = null" and "array $context = []" arguments in version 5.0, not defining it is deprecated since Symfony 4.2.', __METHOD__), E_USER_DEPRECATED);
         }
         $format = \func_num_args() > 1 ? func_get_arg(1) : null;
@@ -336,7 +334,6 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      * Gets attributes to normalize using groups.
      *
      * @param string|object $classOrObject
-     * @param array         $context
      * @param bool          $attributesAsString If false, return an array of {@link AttributeMetadataInterface}
      *
      * @throws LogicException if the 'allow_extra_attributes' context variable is false and no class metadata factory is provided
@@ -381,7 +378,6 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      * @param object|string $classOrObject
      * @param string        $attribute
      * @param string|null   $format
-     * @param array         $context
      *
      * @return bool
      */
@@ -422,11 +418,8 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      * Returns the method to use to construct an object. This method must be either
      * the object constructor or static.
      *
-     * @param array            $data
-     * @param string           $class
-     * @param array            $context
-     * @param \ReflectionClass $reflectionClass
-     * @param array|bool       $allowedAttributes
+     * @param string     $class
+     * @param array|bool $allowedAttributes
      *
      * @return \ReflectionMethod|null
      */
@@ -443,12 +436,8 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
      * is removed from the context before being returned to avoid side effects
      * when recursively normalizing an object graph.
      *
-     * @param array            $data
-     * @param string           $class
-     * @param array            $context
-     * @param \ReflectionClass $reflectionClass
-     * @param array|bool       $allowedAttributes
-     * @param string|null      $format
+     * @param string     $class
+     * @param array|bool $allowedAttributes
      *
      * @return object
      *
@@ -553,19 +542,14 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
     }
 
     /**
-     * @param array       $parentContext
-     * @param string      $attribute     Attribute name
-     * @param string|null $format
-     *
-     * @return array
+     * @param string $attribute Attribute name
      *
      * @internal
      */
-    protected function createChildContext(array $parentContext, $attribute/*, ?string $format */)
+    protected function createChildContext(array $parentContext, $attribute/*, ?string $format */): array
     {
         if (\func_num_args() < 3) {
-            @trigger_error(sprintf('Method "%s::%s()" will have a third "?string $format" argument in version 5.0; not defining it is deprecated since Symfony 4.3.', \get_class($this), __FUNCTION__), E_USER_DEPRECATED);
-            $format = null;
+            @trigger_error(sprintf('Method "%s::%s()" will have a third "?string $format" argument in version 5.0; not defining it is deprecated since Symfony 4.3.', static::class, __FUNCTION__), E_USER_DEPRECATED);
         }
         if (isset($parentContext[self::ATTRIBUTES][$attribute])) {
             $parentContext[self::ATTRIBUTES] = $parentContext[self::ATTRIBUTES][$attribute];

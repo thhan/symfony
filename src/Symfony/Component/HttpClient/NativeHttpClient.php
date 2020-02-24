@@ -48,8 +48,10 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
      */
     public function __construct(array $defaultOptions = [], int $maxHostConnections = 6)
     {
+        $this->defaultOptions['buffer'] = $this->defaultOptions['buffer'] ?? \Closure::fromCallable([__CLASS__, 'shouldBuffer']);
+
         if ($defaultOptions) {
-            [, $this->defaultOptions] = self::prepareRequest(null, null, $defaultOptions, self::OPTIONS_DEFAULTS);
+            [, $this->defaultOptions] = self::prepareRequest(null, null, $defaultOptions, $this->defaultOptions);
         }
 
         $this->multi = new NativeClientState();
@@ -71,13 +73,13 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
 
         $options['body'] = self::getBodyAsString($options['body']);
 
-        if ('' !== $options['body'] && 'POST' === $method && !isset($options['headers']['content-type'])) {
-            $options['request_headers'][] = 'content-type: application/x-www-form-urlencoded';
+        if ('' !== $options['body'] && 'POST' === $method && !isset($options['normalized_headers']['content-type'])) {
+            $options['headers'][] = 'Content-Type: application/x-www-form-urlencoded';
         }
 
-        if ($gzipEnabled = \extension_loaded('zlib') && !isset($options['headers']['accept-encoding'])) {
+        if (\extension_loaded('zlib') && !isset($options['normalized_headers']['accept-encoding'])) {
             // gzip is the most widely available algo, no need to deal with deflate
-            $options['request_headers'][] = 'accept-encoding: gzip';
+            $options['headers'][] = 'Accept-Encoding: gzip';
         }
 
         if ($options['peer_fingerprint']) {
@@ -92,6 +94,7 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
             'response_headers' => [],
             'url' => $url,
             'error' => null,
+            'canceled' => false,
             'http_method' => $method,
             'http_code' => 0,
             'redirect_count' => 0,
@@ -113,7 +116,12 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
         if ($onProgress = $options['on_progress']) {
             // Memoize the last progress to ease calling the callback periodically when no network transfer happens
             $lastProgress = [0, 0];
-            $onProgress = static function (...$progress) use ($onProgress, &$lastProgress, &$info) {
+            $maxDuration = 0 < $options['max_duration'] ? $options['max_duration'] : INF;
+            $onProgress = static function (...$progress) use ($onProgress, &$lastProgress, &$info, $maxDuration) {
+                if ($info['total_time'] >= $maxDuration) {
+                    throw new TransportException(sprintf('Max duration was reached for "%s".', implode('', $info['url'])));
+                }
+
                 $progressInfo = $info;
                 $progressInfo['url'] = implode('', $info['url']);
                 unset($progressInfo['size_body']);
@@ -126,6 +134,13 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
                 }
 
                 $onProgress($lastProgress[0], $lastProgress[1], $progressInfo);
+            };
+        } elseif (0 < $options['max_duration']) {
+            $maxDuration = $options['max_duration'];
+            $onProgress = static function () use (&$info, $maxDuration): void {
+                if ($info['total_time'] >= $maxDuration) {
+                    throw new TransportException(sprintf('Max duration was reached for "%s".', implode('', $info['url'])));
+                }
             };
         }
 
@@ -154,21 +169,25 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
             $this->multi->dnsCache = $options['resolve'] + $this->multi->dnsCache;
         }
 
-        $this->logger && $this->logger->info(sprintf('Request: %s %s', $method, implode('', $url)));
+        $this->logger && $this->logger->info(sprintf('Request: "%s %s"', $method, implode('', $url)));
 
         [$host, $port, $url['authority']] = self::dnsResolve($url, $this->multi, $info, $onProgress);
 
-        if (!isset($options['headers']['host'])) {
-            $options['request_headers'][] = 'host: '.$host.$port;
+        if (!isset($options['normalized_headers']['host'])) {
+            $options['headers'][] = 'Host: '.$host.$port;
         }
 
-        if (!isset($options['headers']['user-agent'])) {
-            $options['request_headers'][] = 'user-agent: Symfony HttpClient/Native';
+        if (!isset($options['normalized_headers']['user-agent'])) {
+            $options['headers'][] = 'User-Agent: Symfony HttpClient/Native';
+        }
+
+        if (0 < $options['max_duration']) {
+            $options['timeout'] = min($options['max_duration'], $options['timeout']);
         }
 
         $context = [
             'http' => [
-                'protocol_version' => $options['http_version'] ?: '1.1',
+                'protocol_version' => min($options['http_version'] ?: '1.1', '1.1'),
                 'method' => $method,
                 'content' => $options['body'],
                 'ignore_errors' => true,
@@ -201,14 +220,14 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
         ];
 
         $proxy = self::getProxy($options['proxy'], $url);
-        $noProxy = $_SERVER['no_proxy'] ?? $_SERVER['NO_PROXY'] ?? '';
+        $noProxy = $options['no_proxy'] ?? $_SERVER['no_proxy'] ?? $_SERVER['NO_PROXY'] ?? '';
         $noProxy = $noProxy ? preg_split('/[\s,]+/', $noProxy) : [];
 
         $resolveRedirect = self::createRedirectResolver($options, $host, $proxy, $noProxy, $info, $onProgress);
         $context = stream_context_create($context, ['notification' => $notification]);
-        self::configureHeadersAndProxy($context, $host, $options['request_headers'], $proxy, $noProxy);
+        self::configureHeadersAndProxy($context, $host, $options['headers'], $proxy, $noProxy);
 
-        return new NativeResponse($this->multi, $context, implode('', $url), $options, $gzipEnabled, $info, $resolveRedirect, $onProgress, $this->logger);
+        return new NativeResponse($this->multi, $context, implode('', $url), $options, $info, $resolveRedirect, $onProgress, $this->logger);
     }
 
     /**
@@ -333,12 +352,12 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
         $redirectHeaders = [];
         if (0 < $maxRedirects = $options['max_redirects']) {
             $redirectHeaders = ['host' => $host];
-            $redirectHeaders['with_auth'] = $redirectHeaders['no_auth'] = array_filter($options['request_headers'], static function ($h) {
+            $redirectHeaders['with_auth'] = $redirectHeaders['no_auth'] = array_filter($options['headers'], static function ($h) {
                 return 0 !== stripos($h, 'Host:');
             });
 
-            if (isset($options['headers']['authorization']) || isset($options['headers']['cookie'])) {
-                $redirectHeaders['no_auth'] = array_filter($options['request_headers'], static function ($h) {
+            if (isset($options['normalized_headers']['authorization']) || isset($options['normalized_headers']['cookie'])) {
+                $redirectHeaders['no_auth'] = array_filter($redirectHeaders['no_auth'], static function ($h) {
                     return 0 !== stripos($h, 'Authorization:') && 0 !== stripos($h, 'Cookie:');
                 });
             }
@@ -391,7 +410,7 @@ final class NativeHttpClient implements HttpClientInterface, LoggerAwareInterfac
             if (false !== (parse_url($location, PHP_URL_HOST) ?? false)) {
                 // Authorization and Cookie headers MUST NOT follow except for the initial host name
                 $requestHeaders = $redirectHeaders['host'] === $host ? $redirectHeaders['with_auth'] : $redirectHeaders['no_auth'];
-                $requestHeaders[] = 'host: '.$host.$port;
+                $requestHeaders[] = 'Host: '.$host.$port;
                 self::configureHeadersAndProxy($context, $host, $requestHeaders, $proxy, $noProxy);
             }
 

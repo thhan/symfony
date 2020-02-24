@@ -149,10 +149,7 @@ class WebServer
         return false;
     }
 
-    /**
-     * @return Process The process
-     */
-    private function createServerProcess(WebServerConfig $config)
+    private function createServerProcess(WebServerConfig $config): Process
     {
         $finder = new PhpExecutableFinder();
         if (false === $binary = $finder->find(false)) {
@@ -167,13 +164,17 @@ class WebServer
 
         if (\in_array('APP_ENV', explode(',', getenv('SYMFONY_DOTENV_VARS')))) {
             $process->setEnv(['APP_ENV' => false]);
-            $process->inheritEnvironmentVariables();
+
+            if (!method_exists(Process::class, 'fromShellCommandline')) {
+                // Symfony 3.4 does not inherit env vars by default:
+                $process->inheritEnvironmentVariables();
+            }
         }
 
         return $process;
     }
 
-    private function getDefaultPidFile()
+    private function getDefaultPidFile(): string
     {
         return ($this->pidFileDirectory ?? getcwd()).'/.web-server-pid';
     }

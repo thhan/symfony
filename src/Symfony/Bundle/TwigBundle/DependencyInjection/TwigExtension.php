@@ -145,18 +145,20 @@ class TwigExtension extends Extension
             }
         }
 
-        unset(
-            $config['form'],
-            $config['globals'],
-            $config['extensions']
-        );
-
         if (isset($config['autoescape_service']) && isset($config['autoescape_service_method'])) {
             $config['autoescape'] = [new Reference($config['autoescape_service']), $config['autoescape_service_method']];
         }
-        unset($config['autoescape_service'], $config['autoescape_service_method']);
 
-        $container->getDefinition('twig')->replaceArgument(1, $config);
+        $container->getDefinition('twig')->replaceArgument(1, array_intersect_key($config, [
+            'debug' => true,
+            'charset' => true,
+            'base_template_class' => true,
+            'strict_variables' => true,
+            'autoescape' => true,
+            'cache' => true,
+            'auto_reload' => true,
+            'optimizations' => true,
+        ]));
 
         $container->registerForAutoconfiguration(\Twig_ExtensionInterface::class)->addTag('twig.extension');
         $container->registerForAutoconfiguration(\Twig_LoaderInterface::class)->addTag('twig.loader');
@@ -170,7 +172,7 @@ class TwigExtension extends Extension
         }
     }
 
-    private function getBundleTemplatePaths(ContainerBuilder $container, array $config)
+    private function getBundleTemplatePaths(ContainerBuilder $container, array $config): array
     {
         $bundleHierarchy = [];
         foreach ($container->getParameter('kernel.bundles_metadata') as $name => $bundle) {
@@ -188,7 +190,7 @@ class TwigExtension extends Extension
             }
             $container->addResource(new FileExistenceResource($defaultOverrideBundlePath));
 
-            if (file_exists($dir = $bundle['path'].'/Resources/views')) {
+            if (file_exists($dir = $bundle['path'].'/Resources/views') || file_exists($dir = $bundle['path'].'/templates')) {
                 $bundleHierarchy[$name][] = $dir;
             }
             $container->addResource(new FileExistenceResource($dir));
@@ -197,7 +199,7 @@ class TwigExtension extends Extension
         return $bundleHierarchy;
     }
 
-    private function normalizeBundleName($name)
+    private function normalizeBundleName(string $name): string
     {
         if ('Bundle' === substr($name, -6)) {
             $name = substr($name, 0, -6);
@@ -207,9 +209,7 @@ class TwigExtension extends Extension
     }
 
     /**
-     * Returns the base path for the XSD files.
-     *
-     * @return string The XSD base path
+     * {@inheritdoc}
      */
     public function getXsdValidationBasePath()
     {

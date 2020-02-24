@@ -46,11 +46,9 @@ class PhpEngineTest extends TestCase
         $this->assertEmpty($globals['app']->getRequest());
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testGetInvalidHelper()
     {
+        $this->expectException('InvalidArgumentException');
         $container = $this->getContainer();
         $loader = $this->getMockForAbstractClass('Symfony\Component\Templating\Loader\Loader');
         $engine = new PhpEngine(new TemplateNameParser(), $container, $loader);
@@ -60,10 +58,8 @@ class PhpEngineTest extends TestCase
 
     /**
      * Creates a Container with a Session-containing Request service.
-     *
-     * @return Container
      */
-    protected function getContainer()
+    protected function getContainer(): Container
     {
         $container = new Container();
         $session = new Session(new MockArraySessionStorage());

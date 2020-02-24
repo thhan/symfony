@@ -60,7 +60,7 @@ class JsonSerializableNormalizer extends AbstractNormalizer
     /**
      * {@inheritdoc}
      */
-    public function denormalize($data, $class, $format = null, array $context = [])
+    public function denormalize($data, $type, $format = null, array $context = [])
     {
         throw new LogicException(sprintf('Cannot denormalize with "%s".', \JsonSerializable::class));
     }
@@ -70,6 +70,6 @@ class JsonSerializableNormalizer extends AbstractNormalizer
      */
     public function hasCacheableSupportsMethod(): bool
     {
-        return __CLASS__ === \get_class($this);
+        return __CLASS__ === static::class;
     }
 }

@@ -63,11 +63,11 @@ class FormBuilder extends FormConfigBuilder implements \IteratorAggregate, FormB
         }
 
         if (!\is_string($child) && !\is_int($child)) {
-            throw new UnexpectedTypeException($child, 'string, integer or Symfony\Component\Form\FormBuilderInterface');
+            throw new UnexpectedTypeException($child, 'string or Symfony\Component\Form\FormBuilderInterface');
         }
 
-        if (null !== $type && !\is_string($type) && !$type instanceof FormTypeInterface) {
-            throw new UnexpectedTypeException($type, 'string or Symfony\Component\Form\FormTypeInterface');
+        if (null !== $type && !\is_string($type)) {
+            throw new UnexpectedTypeException($type, 'string or null');
         }
 
         // Add to "children" to maintain order
@@ -158,7 +158,7 @@ class FormBuilder extends FormConfigBuilder implements \IteratorAggregate, FormB
     }
 
     /**
-     * {@inheritdoc}
+     * @return int
      */
     public function count()
     {

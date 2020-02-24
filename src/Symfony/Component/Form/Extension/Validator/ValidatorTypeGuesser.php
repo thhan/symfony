@@ -122,7 +122,12 @@ class ValidatorTypeGuesser implements FormTypeGuesserInterface
 
             case 'Symfony\Component\Validator\Constraints\File':
             case 'Symfony\Component\Validator\Constraints\Image':
-                return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\FileType', [], Guess::HIGH_CONFIDENCE);
+                $options = [];
+                if ($constraint->mimeTypes) {
+                    $options = ['attr' => ['accept' => implode(',', (array) $constraint->mimeTypes)]];
+                }
+
+                return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\FileType', $options, Guess::HIGH_CONFIDENCE);
 
             case 'Symfony\Component\Validator\Constraints\Language':
                 return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\LanguageType', [], Guess::HIGH_CONFIDENCE);
@@ -153,6 +158,8 @@ class ValidatorTypeGuesser implements FormTypeGuesserInterface
             case 'Symfony\Component\Validator\Constraints\IsFalse':
                 return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\CheckboxType', [], Guess::MEDIUM_CONFIDENCE);
         }
+
+        return null;
     }
 
     /**
@@ -168,6 +175,8 @@ class ValidatorTypeGuesser implements FormTypeGuesserInterface
             case 'Symfony\Component\Validator\Constraints\IsTrue':
                 return new ValueGuess(true, Guess::HIGH_CONFIDENCE);
         }
+
+        return null;
     }
 
     /**
@@ -196,6 +205,8 @@ class ValidatorTypeGuesser implements FormTypeGuesserInterface
                 }
                 break;
         }
+
+        return null;
     }
 
     /**
@@ -232,6 +243,8 @@ class ValidatorTypeGuesser implements FormTypeGuesserInterface
                 }
                 break;
         }
+
+        return null;
     }
 
     /**

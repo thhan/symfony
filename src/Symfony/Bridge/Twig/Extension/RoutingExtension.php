@@ -22,6 +22,8 @@ use Twig\TwigFunction;
  * Provides integration of the Routing component with Twig.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final since Symfony 4.4
  */
 class RoutingExtension extends AbstractExtension
 {
@@ -33,9 +35,9 @@ class RoutingExtension extends AbstractExtension
     }
 
     /**
-     * Returns a list of functions to add to the existing list.
+     * {@inheritdoc}
      *
-     * @return array An array of functions
+     * @return TwigFunction[]
      */
     public function getFunctions()
     {
@@ -93,7 +95,7 @@ class RoutingExtension extends AbstractExtension
      *
      * @final
      */
-    public function isUrlGenerationSafe(Node $argsNode)
+    public function isUrlGenerationSafe(Node $argsNode): array
     {
         // support named arguments
         $paramsNode = $argsNode->hasNode('parameters') ? $argsNode->getNode('parameters') : (

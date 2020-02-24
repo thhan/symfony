@@ -49,7 +49,7 @@ final class Locales extends ResourceBundle
     }
 
     /**
-     * @throws MissingResourceException if the locale does not exists
+     * @throws MissingResourceException if the locale does not exist
      */
     public static function getName(string $locale, string $displayLocale = null): string
     {
@@ -67,7 +67,7 @@ final class Locales extends ResourceBundle
     /**
      * @return string[]
      */
-    public static function getNames($displayLocale = null)
+    public static function getNames($displayLocale = null): array
     {
         return self::asort(self::readEntry(['Names'], $displayLocale), $displayLocale);
     }

@@ -22,6 +22,7 @@ use Symfony\Component\Security\Core\Exception\CookieTheftException;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UsernameNotFoundException;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Component\Security\Http\Logout\LogoutHandlerInterface;
 use Symfony\Component\Security\Http\ParameterBagUtils;
 
@@ -93,6 +94,10 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
      */
     final public function autoLogin(Request $request): ?TokenInterface
     {
+        if (($cookie = $request->attributes->get(self::COOKIE_ATTR_NAME)) && null === $cookie->getValue()) {
+            return null;
+        }
+
         if (null === $cookie = $request->cookies->get($this->options['name'])) {
             return null;
         }
@@ -221,7 +226,7 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
      */
     abstract protected function onLoginSuccess(Request $request, Response $response, TokenInterface $token);
 
-    final protected function getUserProvider($class)
+    final protected function getUserProvider(string $class): UserProviderInterface
     {
         foreach ($this->userProviders as $provider) {
             if ($provider->supportsClass($class)) {
@@ -229,7 +234,7 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
             }
         }
 
-        throw new UnsupportedUserException(sprintf('There is no user provider that supports class "%s".', $class));
+        throw new UnsupportedUserException(sprintf('There is no user provider for user "%s". Shouldn\'t the "supportsClass()" method of your user provider return true for this classname?', $class));
     }
 
     /**

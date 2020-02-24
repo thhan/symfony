@@ -11,10 +11,10 @@
 
 namespace Symfony\Bridge\Doctrine\Test;
 
-use Doctrine\Common\Persistence\ObjectRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Repository\RepositoryFactory;
+use Doctrine\Persistence\ObjectRepository;
 
 /**
  * @author Andreas Braun <alcaeus@alcaeus.org>
@@ -28,6 +28,8 @@ final class TestRepositoryFactory implements RepositoryFactory
 
     /**
      * {@inheritdoc}
+     *
+     * @return ObjectRepository
      */
     public function getRepository(EntityManagerInterface $entityManager, $entityName)
     {
@@ -40,17 +42,14 @@ final class TestRepositoryFactory implements RepositoryFactory
         return $this->repositoryList[$repositoryHash] = $this->createRepository($entityManager, $entityName);
     }
 
-    public function setRepository(EntityManagerInterface $entityManager, $entityName, ObjectRepository $repository)
+    public function setRepository(EntityManagerInterface $entityManager, string $entityName, ObjectRepository $repository)
     {
         $repositoryHash = $this->getRepositoryHash($entityManager, $entityName);
 
         $this->repositoryList[$repositoryHash] = $repository;
     }
 
-    /**
-     * @return ObjectRepository
-     */
-    private function createRepository(EntityManagerInterface $entityManager, $entityName)
+    private function createRepository(EntityManagerInterface $entityManager, string $entityName): ObjectRepository
     {
         /* @var $metadata ClassMetadata */
         $metadata = $entityManager->getClassMetadata($entityName);
@@ -59,7 +58,7 @@ final class TestRepositoryFactory implements RepositoryFactory
         return new $repositoryClassName($entityManager, $metadata);
     }
 
-    private function getRepositoryHash(EntityManagerInterface $entityManager, $entityName)
+    private function getRepositoryHash(EntityManagerInterface $entityManager, string $entityName): string
     {
         return $entityManager->getClassMetadata($entityName)->getName().spl_object_hash($entityManager);
     }

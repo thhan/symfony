@@ -29,23 +29,28 @@ class HttpCache extends BaseHttpCache
     protected $kernel;
 
     /**
-     * @param KernelInterface $kernel   A KernelInterface instance
-     * @param string          $cacheDir The cache directory (default used if null)
+     * @param string $cacheDir The cache directory (default used if null)
      */
     public function __construct(KernelInterface $kernel, string $cacheDir = null)
     {
         $this->kernel = $kernel;
         $this->cacheDir = $cacheDir;
 
-        parent::__construct($kernel, $this->createStore(), $this->createSurrogate(), array_merge(['debug' => $kernel->isDebug()], $this->getOptions()));
+        $isDebug = $kernel->isDebug();
+        $options = ['debug' => $isDebug];
+
+        if ($isDebug) {
+            $options['stale_if_error'] = 0;
+        }
+
+        parent::__construct($kernel, $this->createStore(), $this->createSurrogate(), array_merge($options, $this->getOptions()));
     }
 
     /**
      * Forwards the Request to the backend and returns the Response.
      *
-     * @param Request  $request A Request instance
-     * @param bool     $raw     Whether to catch exceptions or not
-     * @param Response $entry   A Response instance (the stale entry if present, null otherwise)
+     * @param bool     $raw   Whether to catch exceptions or not
+     * @param Response $entry A Response instance (the stale entry if present, null otherwise)
      *
      * @return Response A Response instance
      */

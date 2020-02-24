@@ -88,6 +88,8 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      */
     public const DEEP_OBJECT_TO_POPULATE = 'deep_object_to_populate';
 
+    public const PRESERVE_EMPTY_OBJECTS = 'preserve_empty_objects';
+
     private $propertyTypeExtractor;
     private $typesCache = [];
     private $attributesCache = [];
@@ -206,6 +208,10 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             $data = $this->updateData($data, $attribute, $this->serializer->normalize($attributeValue, $format, $this->createChildContext($context, $attribute, $format)), $class, $format, $context);
         }
 
+        if (isset($context[self::PRESERVE_EMPTY_OBJECTS]) && !\count($data)) {
+            return new \ArrayObject();
+        }
+
         return $data;
     }
 
@@ -236,7 +242,6 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      *
      * @param object      $object
      * @param string|null $format
-     * @param array       $context
      *
      * @return string[]
      */
@@ -277,7 +282,6 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      *
      * @param object      $object
      * @param string|null $format
-     * @param array       $context
      *
      * @return string[]
      */
@@ -289,7 +293,6 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      * @param object      $object
      * @param string      $attribute
      * @param string|null $format
-     * @param array       $context
      *
      * @return mixed
      */
@@ -318,18 +321,18 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
     /**
      * {@inheritdoc}
      */
-    public function denormalize($data, $class, $format = null, array $context = [])
+    public function denormalize($data, $type, $format = null, array $context = [])
     {
         if (!isset($context['cache_key'])) {
             $context['cache_key'] = $this->getCacheKey($format, $context);
         }
 
-        $allowedAttributes = $this->getAllowedAttributes($class, $context, true);
+        $allowedAttributes = $this->getAllowedAttributes($type, $context, true);
         $normalizedData = $this->prepareForDenormalization($data);
         $extraAttributes = [];
 
-        $reflectionClass = new \ReflectionClass($class);
-        $object = $this->instantiateObject($normalizedData, $class, $context, $reflectionClass, $allowedAttributes, $format);
+        $reflectionClass = new \ReflectionClass($type);
+        $object = $this->instantiateObject($normalizedData, $type, $context, $reflectionClass, $allowedAttributes, $format);
         $resolvedClass = $this->objectClassResolver ? ($this->objectClassResolver)($object) : \get_class($object);
 
         foreach ($normalizedData as $attribute => $value) {
@@ -356,7 +359,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             try {
                 $this->setAttributeValue($object, $attribute, $value, $format, $context);
             } catch (InvalidArgumentException $e) {
-                throw new NotNormalizableValueException(sprintf('Failed to denormalize attribute "%s" value for class "%s": %s.', $attribute, $class, $e->getMessage()), $e->getCode(), $e);
+                throw new NotNormalizableValueException(sprintf('Failed to denormalize attribute "%s" value for class "%s": %s.', $attribute, $type, $e->getMessage()), $e->getCode(), $e);
             }
         }
 
@@ -374,7 +377,6 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      * @param string      $attribute
      * @param mixed       $value
      * @param string|null $format
-     * @param array       $context
      */
     abstract protected function setAttributeValue($object, $attribute, $value, $format = null, array $context = []);
 
@@ -397,21 +399,43 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
         $expectedTypes = [];
         foreach ($types as $type) {
             if (null === $data && $type->isNullable()) {
-                return;
+                return null;
             }
 
-            if ($type->isCollection() && null !== ($collectionValueType = $type->getCollectionValueType()) && Type::BUILTIN_TYPE_OBJECT === $collectionValueType->getBuiltinType()) {
+            $collectionValueType = $type->isCollection() ? $type->getCollectionValueType() : null;
+
+            // Fix a collection that contains the only one element
+            // This is special to xml format only
+            if ('xml' === $format && null !== $collectionValueType && (!\is_array($data) || !\is_int(key($data)))) {
+                $data = [$data];
+            }
+
+            if (null !== $collectionValueType && Type::BUILTIN_TYPE_OBJECT === $collectionValueType->getBuiltinType()) {
                 $builtinType = Type::BUILTIN_TYPE_OBJECT;
                 $class = $collectionValueType->getClassName().'[]';
 
-                // Fix a collection that contains the only one element
-                // This is special to xml format only
-                if ('xml' === $format && !\is_int(key($data))) {
-                    $data = [$data];
-                }
-
                 if (null !== $collectionKeyType = $type->getCollectionKeyType()) {
                     $context['key_type'] = $collectionKeyType;
+                }
+            } elseif ($type->isCollection() && null !== ($collectionValueType = $type->getCollectionValueType()) && Type::BUILTIN_TYPE_ARRAY === $collectionValueType->getBuiltinType()) {
+                // get inner type for any nested array
+                $innerType = $collectionValueType;
+
+                // note that it will break for any other builtinType
+                $dimensions = '[]';
+                while (null !== $innerType->getCollectionValueType() && Type::BUILTIN_TYPE_ARRAY === $innerType->getBuiltinType()) {
+                    $dimensions .= '[]';
+                    $innerType = $innerType->getCollectionValueType();
+                }
+
+                if (null !== $innerType->getClassName()) {
+                    // the builtinType is the inner one and the class is the class followed by []...[]
+                    $builtinType = $innerType->getBuiltinType();
+                    $class = $innerType->getClassName().$dimensions;
+                } else {
+                    // default fallback (keep it as array)
+                    $builtinType = $type->getBuiltinType();
+                    $class = $type->getClassName();
                 }
             } else {
                 $builtinType = $type->getBuiltinType();
@@ -468,7 +492,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
     /**
      * @return Type[]|null
      */
-    private function getTypes(string $currentClass, string $attribute)
+    private function getTypes(string $currentClass, string $attribute): ?array
     {
         if (null === $this->propertyTypeExtractor) {
             return null;
@@ -565,12 +589,12 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
      *
      * @internal
      */
-    protected function createChildContext(array $parentContext, $attribute/*, ?string $format */)
+    protected function createChildContext(array $parentContext, $attribute/*, ?string $format */): array
     {
         if (\func_num_args() >= 3) {
             $format = func_get_arg(2);
         } else {
-            @trigger_error(sprintf('Method "%s::%s()" will have a third "?string $format" argument in version 5.0; not defining it is deprecated since Symfony 4.3.', \get_class($this), __FUNCTION__), E_USER_DEPRECATED);
+            @trigger_error(sprintf('Method "%s::%s()" will have a third "?string $format" argument in version 5.0; not defining it is deprecated since Symfony 4.3.', static::class, __FUNCTION__), E_USER_DEPRECATED);
             $format = null;
         }
 

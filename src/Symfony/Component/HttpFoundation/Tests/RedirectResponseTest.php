@@ -20,27 +20,20 @@ class RedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
 
-        $this->assertEquals(1, preg_match(
-            '#<meta http-equiv="refresh" content="\d+;url=foo\.bar" />#',
-            preg_replace(['/\s+/', '/\'/'], [' ', '"'], $response->getContent())
-        ));
+        $this->assertRegExp('#<meta http-equiv="refresh" content="\d+;url=\'foo\.bar\'" />#', preg_replace('/\s+/', ' ', $response->getContent()));
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Cannot redirect to an empty URL.
-     */
     public function testRedirectResponseConstructorEmptyUrl()
     {
-        $response = new RedirectResponse('');
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('Cannot redirect to an empty URL.');
+        new RedirectResponse('');
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testRedirectResponseConstructorWrongStatusCode()
     {
-        $response = new RedirectResponse('foo.bar', 404);
+        $this->expectException('InvalidArgumentException');
+        new RedirectResponse('foo.bar', 404);
     }
 
     public function testGenerateLocationHeader()
@@ -66,11 +59,9 @@ class RedirectResponseTest extends TestCase
         $this->assertEquals('baz.beep', $response->getTargetUrl());
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testSetTargetUrlNull()
     {
+        $this->expectException('InvalidArgumentException');
         $response = new RedirectResponse('foo.bar');
         $response->setTargetUrl(null);
     }

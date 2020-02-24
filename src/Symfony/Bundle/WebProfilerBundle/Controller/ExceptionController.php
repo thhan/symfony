@@ -11,7 +11,7 @@
 
 namespace Symfony\Bundle\WebProfilerBundle\Controller;
 
-use Symfony\Component\ErrorRenderer\ErrorRenderer\HtmlErrorRenderer;
+use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Debug\FileLinkFormatter;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -19,11 +19,16 @@ use Symfony\Component\HttpKernel\Profiler\Profiler;
 use Twig\Environment;
 use Twig\Error\LoaderError;
 use Twig\Loader\ExistsLoaderInterface;
+use Twig\Loader\SourceContextLoaderInterface;
+
+@trigger_error(sprintf('The "%s" class is deprecated since Symfony 4.4, use "%s" instead.', ExceptionController::class, ExceptionPanelController::class), E_USER_DEPRECATED);
 
 /**
  * ExceptionController.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @deprecated since Symfony 4.4, use the ExceptionPanelController instead.
  */
 class ExceptionController
 {
@@ -37,11 +42,7 @@ class ExceptionController
         $this->profiler = $profiler;
         $this->twig = $twig;
         $this->debug = $debug;
-        $this->errorRenderer = $errorRenderer;
-
-        if (null === $errorRenderer) {
-            $this->errorRenderer = new HtmlErrorRenderer($debug, $this->twig->getCharset(), $fileLinkFormat);
-        }
+        $this->errorRenderer = $errorRenderer ?? new HtmlErrorRenderer($debug, $this->twig->getCharset(), $fileLinkFormat);
     }
 
     /**
@@ -101,7 +102,7 @@ class ExceptionController
 
         $template = $this->getTemplate();
 
-        if (!$this->templateExists($template, false)) {
+        if (!$this->templateExists($template)) {
             return new Response($this->errorRenderer->getStylesheet(), 200, ['Content-Type' => 'text/css']);
         }
 
@@ -113,27 +114,25 @@ class ExceptionController
         return '@Twig/Exception/'.($this->debug ? 'exception' : 'error').'.html.twig';
     }
 
-    /**
-     * @deprecated since Symfony 4.4
-     */
-    protected function templateExists($template/*, bool $triggerDeprecation = true */)
+    protected function templateExists($template)
     {
-        if (1 === \func_num_args()) {
-            @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 4.4, use the "exists()" method of the Twig loader instead.', __METHOD__), E_USER_DEPRECATED);
-        }
-
         $loader = $this->twig->getLoader();
-        if ($loader instanceof ExistsLoaderInterface) {
-            return $loader->exists($template);
+
+        if (1 === Environment::MAJOR_VERSION && !$loader instanceof ExistsLoaderInterface) {
+            try {
+                if ($loader instanceof SourceContextLoaderInterface) {
+                    $loader->getSourceContext($template);
+                } else {
+                    $loader->getSource($template);
+                }
+
+                return true;
+            } catch (LoaderError $e) {
+            }
+
+            return false;
         }
 
-        try {
-            $loader->getSource($template);
-
-            return true;
-        } catch (LoaderError $e) {
-        }
-
-        return false;
+        return $loader->exists($template);
     }
 }

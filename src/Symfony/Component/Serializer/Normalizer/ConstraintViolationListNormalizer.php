@@ -19,7 +19,6 @@ use Symfony\Component\Validator\ConstraintViolationListInterface;
  *
  * This Normalizer implements RFC7807 {@link https://tools.ietf.org/html/rfc7807}.
  *
- *
  * @author Grégoire Pineau <lyrixx@lyrixx.info>
  * @author Kévin Dunglas <dunglas@gmail.com>
  */
@@ -94,6 +93,6 @@ class ConstraintViolationListNormalizer implements NormalizerInterface, Cacheabl
      */
     public function hasCacheableSupportsMethod(): bool
     {
-        return __CLASS__ === \get_class($this);
+        return __CLASS__ === static::class;
     }
 }

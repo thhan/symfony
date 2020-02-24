@@ -17,7 +17,7 @@ use Symfony\Component\Cache\PruneableInterface;
 
 abstract class CacheTestCase extends SimpleCacheTest
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -26,7 +26,7 @@ abstract class CacheTestCase extends SimpleCacheTest
         }
     }
 
-    public static function validKeys()
+    public static function validKeys(): array
     {
         return array_merge(parent::validKeys(), [["a\0b"]]);
     }

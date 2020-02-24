@@ -20,7 +20,7 @@ use Symfony\Component\Lock\Store\RedisStore;
  */
 class RedisStoreTest extends AbstractRedisStoreTest
 {
-    public static function setupBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         if (!@((new \Redis())->connect(getenv('REDIS_HOST')))) {
             $e = error_get_last();
@@ -36,11 +36,9 @@ class RedisStoreTest extends AbstractRedisStoreTest
         return $redis;
     }
 
-    /**
-     * @expectedException \Symfony\Component\Lock\Exception\InvalidTtlException
-     */
     public function testInvalidTtl()
     {
+        $this->expectException('Symfony\Component\Lock\Exception\InvalidTtlException');
         new RedisStore($this->getRedisConnection(), -1);
     }
 }

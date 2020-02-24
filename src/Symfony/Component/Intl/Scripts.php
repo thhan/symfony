@@ -41,7 +41,7 @@ final class Scripts extends ResourceBundle
     }
 
     /**
-     * @throws MissingResourceException if the script code does not exists
+     * @throws MissingResourceException if the script code does not exist
      */
     public static function getName(string $script, string $displayLocale = null): string
     {
@@ -51,7 +51,7 @@ final class Scripts extends ResourceBundle
     /**
      * @return string[]
      */
-    public static function getNames($displayLocale = null)
+    public static function getNames($displayLocale = null): array
     {
         return self::asort(self::readEntry(['Names'], $displayLocale), $displayLocale);
     }

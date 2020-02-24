@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Cache\Tests\Simple;
 
+use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Simple\PdoCache;
 use Symfony\Component\Cache\Tests\Traits\PdoPruneableTrait;
 
@@ -24,7 +25,7 @@ class PdoCacheTest extends CacheTestCase
 
     protected static $dbFile;
 
-    public static function setupBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         if (!\extension_loaded('pdo_sqlite')) {
             self::markTestSkipped('Extension pdo_sqlite required.');
@@ -36,12 +37,12 @@ class PdoCacheTest extends CacheTestCase
         $pool->createTable();
     }
 
-    public static function tearDownAfterClass()
+    public static function tearDownAfterClass(): void
     {
         @unlink(self::$dbFile);
     }
 
-    public function createSimpleCache($defaultLifetime = 0)
+    public function createSimpleCache(int $defaultLifetime = 0): CacheInterface
     {
         return new PdoCache('sqlite:'.self::$dbFile, 'ns', $defaultLifetime);
     }

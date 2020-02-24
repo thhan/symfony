@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Cache\Tests\Adapter;
 
+use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\MemcachedAdapter;
 
@@ -24,7 +25,7 @@ class MemcachedAdapterTest extends AdapterTestCase
 
     protected static $client;
 
-    public static function setupBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         if (!MemcachedAdapter::isSupported()) {
             self::markTestSkipped('Extension memcached >=2.2.0 required.');
@@ -38,7 +39,7 @@ class MemcachedAdapterTest extends AdapterTestCase
         }
     }
 
-    public function createCachePool($defaultLifetime = 0)
+    public function createCachePool(int $defaultLifetime = 0): CacheItemPoolInterface
     {
         $client = $defaultLifetime ? AbstractAdapter::createConnection('memcached://'.getenv('MEMCACHED_HOST')) : self::$client;
 
@@ -64,15 +65,15 @@ class MemcachedAdapterTest extends AdapterTestCase
 
     /**
      * @dataProvider provideBadOptions
-     * @expectedException \ErrorException
-     * @expectedExceptionMessage constant(): Couldn't find constant Memcached::
      */
     public function testBadOptions($name, $value)
     {
+        $this->expectException('ErrorException');
+        $this->expectExceptionMessage('constant(): Couldn\'t find constant Memcached::');
         MemcachedAdapter::createConnection([], [$name => $value]);
     }
 
-    public function provideBadOptions()
+    public function provideBadOptions(): array
     {
         return [
             ['foo', 'bar'],
@@ -94,12 +95,10 @@ class MemcachedAdapterTest extends AdapterTestCase
         $this->assertSame(1, $client->getOption(\Memcached::OPT_LIBKETAMA_COMPATIBLE));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Cache\Exception\CacheException
-     * @expectedExceptionMessage MemcachedAdapter: "serializer" option must be "php" or "igbinary".
-     */
     public function testOptionSerializer()
     {
+        $this->expectException('Symfony\Component\Cache\Exception\CacheException');
+        $this->expectExceptionMessage('MemcachedAdapter: "serializer" option must be "php" or "igbinary".');
         if (!\Memcached::HAVE_JSON) {
             $this->markTestSkipped('Memcached::HAVE_JSON required');
         }
@@ -110,7 +109,7 @@ class MemcachedAdapterTest extends AdapterTestCase
     /**
      * @dataProvider provideServersSetting
      */
-    public function testServersSetting($dsn, $host, $port)
+    public function testServersSetting(string $dsn, string $host, int $port)
     {
         $client1 = MemcachedAdapter::createConnection($dsn);
         $client2 = MemcachedAdapter::createConnection([$dsn]);
@@ -126,7 +125,7 @@ class MemcachedAdapterTest extends AdapterTestCase
         $this->assertSame([$expect], array_map($f, $client3->getServerList()));
     }
 
-    public function provideServersSetting()
+    public function provideServersSetting(): iterable
     {
         yield [
             'memcached://127.0.0.1/50',
@@ -167,7 +166,7 @@ class MemcachedAdapterTest extends AdapterTestCase
     /**
      * @dataProvider provideDsnWithOptions
      */
-    public function testDsnWithOptions($dsn, array $options, array $expectedOptions)
+    public function testDsnWithOptions(string $dsn, array $options, array $expectedOptions)
     {
         $client = MemcachedAdapter::createConnection($dsn, $options);
 
@@ -176,7 +175,7 @@ class MemcachedAdapterTest extends AdapterTestCase
         }
     }
 
-    public function provideDsnWithOptions()
+    public function provideDsnWithOptions(): iterable
     {
         if (!class_exists('\Memcached')) {
             self::markTestSkipped('Extension memcached required.');

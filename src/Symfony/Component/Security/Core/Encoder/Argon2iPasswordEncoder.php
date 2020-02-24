@@ -38,9 +38,9 @@ class Argon2iPasswordEncoder extends BasePasswordEncoder implements SelfSaltingE
     {
         if (\defined('PASSWORD_ARGON2I')) {
             $this->config = [
-                'memory_cost' => $memoryCost ?? \PASSWORD_ARGON2_DEFAULT_MEMORY_COST,
-                'time_cost' => $timeCost ?? \PASSWORD_ARGON2_DEFAULT_TIME_COST,
-                'threads' => $threads ?? \PASSWORD_ARGON2_DEFAULT_THREADS,
+                'memory_cost' => $memoryCost ?? PASSWORD_ARGON2_DEFAULT_MEMORY_COST,
+                'time_cost' => $timeCost ?? PASSWORD_ARGON2_DEFAULT_TIME_COST,
+                'threads' => $threads ?? PASSWORD_ARGON2_DEFAULT_THREADS,
             ];
         }
     }
@@ -51,7 +51,7 @@ class Argon2iPasswordEncoder extends BasePasswordEncoder implements SelfSaltingE
             return true;
         }
 
-        return version_compare(\extension_loaded('sodium') ? \SODIUM_LIBRARY_VERSION : phpversion('libsodium'), '1.0.9', '>=');
+        return version_compare(\extension_loaded('sodium') ? SODIUM_LIBRARY_VERSION : phpversion('libsodium'), '1.0.9', '>=');
     }
 
     /**
@@ -102,24 +102,24 @@ class Argon2iPasswordEncoder extends BasePasswordEncoder implements SelfSaltingE
         throw new \LogicException('Argon2i algorithm is not supported. Please install the libsodium extension or upgrade to PHP 7.2+.');
     }
 
-    private function encodePasswordNative($raw)
+    private function encodePasswordNative(string $raw): string
     {
-        return password_hash($raw, \PASSWORD_ARGON2I, $this->config);
+        return password_hash($raw, PASSWORD_ARGON2I, $this->config);
     }
 
-    private function encodePasswordSodiumFunction($raw)
+    private function encodePasswordSodiumFunction(string $raw): string
     {
         $hash = sodium_crypto_pwhash_str(
             $raw,
-            \SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE,
-            \SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE
+            SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE,
+            SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE
         );
         sodium_memzero($raw);
 
         return $hash;
     }
 
-    private function encodePasswordSodiumExtension($raw)
+    private function encodePasswordSodiumExtension(string $raw): string
     {
         $hash = \Sodium\crypto_pwhash_str(
             $raw,

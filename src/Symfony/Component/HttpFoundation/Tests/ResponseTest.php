@@ -370,6 +370,12 @@ class ResponseTest extends ResponseTestCase
         $this->assertNull($response->headers->get('Expires'), '->expire() removes the Expires header when the response is fresh');
     }
 
+    public function testNullExpireHeader()
+    {
+        $response = new Response(null, 200, ['Expires' => null]);
+        $this->assertNull($response->getExpires());
+    }
+
     public function testGetTtl()
     {
         $response = new Response();
@@ -455,18 +461,10 @@ class ResponseTest extends ResponseTestCase
 
     public function testDefaultContentType()
     {
-        $headerMock = $this->getMockBuilder('Symfony\Component\HttpFoundation\ResponseHeaderBag')->setMethods(['set'])->getMock();
-        $headerMock->expects($this->at(0))
-            ->method('set')
-            ->with('Content-Type', 'text/html');
-        $headerMock->expects($this->at(1))
-            ->method('set')
-            ->with('Content-Type', 'text/html; charset=UTF-8');
-
         $response = new Response('foo');
-        $response->headers = $headerMock;
-
         $response->prepare(new Request());
+
+        $this->assertSame('text/html; charset=UTF-8', $response->headers->get('Content-Type'));
     }
 
     public function testContentTypeCharset()
@@ -533,7 +531,6 @@ class ResponseTest extends ResponseTestCase
         $response->setStatusCode(101);
         $response->prepare($request);
         $this->assertEquals('', $response->getContent());
-        $this->assertFalse($response->headers->has('Content-Type'));
         $this->assertFalse($response->headers->has('Content-Type'));
 
         $response->setContent('content');
@@ -602,7 +599,7 @@ class ResponseTest extends ResponseTestCase
             $this->fail('->setCache() throws an InvalidArgumentException if an option is not supported');
         } catch (\Exception $e) {
             $this->assertInstanceOf('InvalidArgumentException', $e, '->setCache() throws an InvalidArgumentException if an option is not supported');
-            $this->assertContains('"wrong option"', $e->getMessage());
+            $this->assertStringContainsString('"wrong option"', $e->getMessage());
         }
 
         $options = ['etag' => '"whatever"'];
@@ -655,7 +652,7 @@ class ResponseTest extends ResponseTestCase
         ob_start();
         $response->sendContent();
         $string = ob_get_clean();
-        $this->assertContains('test response rendering', $string);
+        $this->assertStringContainsString('test response rendering', $string);
     }
 
     public function testSetPublic()
@@ -902,11 +899,11 @@ class ResponseTest extends ResponseTestCase
     }
 
     /**
-     * @expectedException \UnexpectedValueException
      * @dataProvider invalidContentProvider
      */
     public function testSetContentInvalid($content)
     {
+        $this->expectException('UnexpectedValueException');
         $response = new Response();
         $response->setContent($content);
     }
@@ -991,11 +988,11 @@ class ResponseTest extends ResponseTestCase
     }
 
     /**
-     * @see       http://github.com/zendframework/zend-diactoros for the canonical source repository
+     * @see http://github.com/zendframework/zend-diactoros for the canonical source repository
      *
-     * @author    Fábio Pacheco
+     * @author Fábio Pacheco
      * @copyright Copyright (c) 2015-2016 Zend Technologies USA Inc. (http://www.zend.com)
-     * @license   https://github.com/zendframework/zend-diactoros/blob/master/LICENSE.md New BSD License
+     * @license https://github.com/zendframework/zend-diactoros/blob/master/LICENSE.md New BSD License
      */
     public function ianaCodesReasonPhrasesProvider()
     {
@@ -1055,7 +1052,7 @@ class ResponseTest extends ResponseTestCase
 
 class StringableObject
 {
-    public function __toString()
+    public function __toString(): string
     {
         return 'Foo';
     }

@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Cache\Tests\Simple;
 
+use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Simple\NullCache;
 use Symfony\Component\Cache\Simple\PhpArrayCache;
 use Symfony\Component\Cache\Tests\Adapter\FilesystemAdapterTest;
@@ -50,19 +51,21 @@ class PhpArrayCacheTest extends CacheTestCase
 
     protected static $file;
 
-    public static function setupBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         self::$file = sys_get_temp_dir().'/symfony-cache/php-array-adapter-test.php';
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
+        $this->createSimpleCache()->clear();
+
         if (file_exists(sys_get_temp_dir().'/symfony-cache')) {
             FilesystemAdapterTest::rmdir(sys_get_temp_dir().'/symfony-cache');
         }
     }
 
-    public function createSimpleCache()
+    public function createSimpleCache(): CacheInterface
     {
         return new PhpArrayCacheWrapper(self::$file, new NullCache());
     }

@@ -4,7 +4,16 @@ CHANGELOG
 4.4.0
 -----
 
+ * add new `WeekType`
+ * using different values for the "model_timezone" and "view_timezone" options of the `TimeType` without configuring a
+   reference date is deprecated
+ * preferred choices are repeated in the list of all choices
  * deprecated using `int` or `float` as data for the `NumberType` when the `input` option is set to `string`
+ * The type guesser guesses the HTML accept attribute when a mime type is configured in the File or Image constraint.
+ * Overriding the methods `FormIntegrationTestCase::setUp()`, `TypeTestCase::setUp()` and `TypeTestCase::tearDown()` without the `void` return-type is deprecated.
+ * marked all dispatched event classes as `@final`
+ * Added the `validate` option to `SubmitType` to toggle the browser built-in form validation.
+ * Added the `alpha3` option to `LanguageType` and `CountryType` to use alpha3 instead of alpha2 codes
 
 4.3.0
 -----
@@ -22,10 +31,10 @@ CHANGELOG
  * added `help_html` option to display the `help` text as HTML.
  * `FormError` doesn't implement `Serializable` anymore
  * `FormDataCollector` has been marked as `final`
- * added `label_translation_parameters`, `attr_translation_parameters`, `help_translation_parameters` options 
+ * added `label_translation_parameters`, `attr_translation_parameters`, `help_translation_parameters` options
    to `FormType` to pass translation parameters to form labels, attributes (`placeholder` and `title`) and help text respectively.
    The passed parameters will replace placeholders in translation messages.
-   
+
    ```php
    class OrderType extends AbstractType
    {

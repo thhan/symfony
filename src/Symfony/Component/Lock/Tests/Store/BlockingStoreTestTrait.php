@@ -14,7 +14,7 @@ namespace Symfony\Component\Lock\Tests\Store;
 use Symfony\Component\Lock\Exception\LockConflictedException;
 use Symfony\Component\Lock\Exception\NotSupportedException;
 use Symfony\Component\Lock\Key;
-use Symfony\Component\Lock\StoreInterface;
+use Symfony\Component\Lock\PersistingStoreInterface;
 
 /**
  * @author Jérémy Derussé <jeremy@derusse.com>
@@ -24,7 +24,7 @@ trait BlockingStoreTestTrait
     /**
      * @see AbstractStoreTest::getStore()
      *
-     * @return StoreInterface
+     * @return PersistingStoreInterface
      */
     abstract protected function getStore();
 
@@ -32,6 +32,10 @@ trait BlockingStoreTestTrait
      * Tests blocking locks thanks to pcntl.
      *
      * This test is time sensible: the $clockDelay could be adjust.
+     *
+     * It also fails when run with the global ./phpunit test suite.
+     *
+     * @group transient
      *
      * @requires extension pcntl
      * @requires extension posix

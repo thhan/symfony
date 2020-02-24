@@ -11,8 +11,9 @@
 
 namespace Symfony\Bridge\Doctrine;
 
-use Doctrine\Common\Persistence\AbstractManagerRegistry;
+use Doctrine\Persistence\AbstractManagerRegistry;
 use ProxyManager\Proxy\LazyLoadingInterface;
+use Symfony\Bridge\ProxyManager\LazyProxy\Instantiator\RuntimeInstantiator;
 use Symfony\Component\DependencyInjection\Container;
 
 /**
@@ -29,6 +30,8 @@ abstract class ManagerRegistry extends AbstractManagerRegistry
 
     /**
      * {@inheritdoc}
+     *
+     * @return object
      */
     protected function getService($name)
     {
@@ -37,6 +40,8 @@ abstract class ManagerRegistry extends AbstractManagerRegistry
 
     /**
      * {@inheritdoc}
+     *
+     * @return void
      */
     protected function resetService($name)
     {
@@ -46,7 +51,7 @@ abstract class ManagerRegistry extends AbstractManagerRegistry
         $manager = $this->container->get($name);
 
         if (!$manager instanceof LazyLoadingInterface) {
-            throw new \LogicException('Resetting a non-lazy manager service is not supported. '.(interface_exists(LazyLoadingInterface::class) ? sprintf('Declare the "%s" service as lazy.', $name) : 'Try running "composer require symfony/proxy-manager-bridge".'));
+            throw new \LogicException('Resetting a non-lazy manager service is not supported. '.(interface_exists(LazyLoadingInterface::class) && class_exists(RuntimeInstantiator::class) ? sprintf('Declare the "%s" service as lazy.', $name) : 'Try running "composer require symfony/proxy-manager-bridge".'));
         }
         $manager->setProxyInitializer(\Closure::bind(
             function (&$wrappedInstance, LazyLoadingInterface $manager) use ($name) {

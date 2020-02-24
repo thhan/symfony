@@ -1,3 +1,4 @@
+{% deprecated 'The template "' ~ _self ~'" is deprecated since Symfony 4.4, will be removed in 5.0.' %}
 {# This file is based on WebProfilerBundle/Resources/views/Profiler/profiler.css.twig.
    If you make any change in this file, verify the same change is needed in the other file. #}
 :root {
@@ -28,6 +29,7 @@
     --shadow: 0px 0px 1px rgba(128, 128, 128, .2);
     --border: 1px solid #e0e0e0;
     --background-error: var(--color-error);
+    --trace-selected-background: #F7E5A1;
     --highlight-comment: #969896;
     --highlight-default: #222222;
     --highlight-keyword: #a71d5d;

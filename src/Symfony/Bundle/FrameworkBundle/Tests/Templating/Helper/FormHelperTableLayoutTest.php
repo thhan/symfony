@@ -30,7 +30,7 @@ class FormHelperTableLayoutTest extends AbstractTableLayoutTest
      */
     protected $engine;
 
-    protected static $supportedFeatureSetVersion = 403;
+    protected static $supportedFeatureSetVersion = 404;
 
     public function testStartTagHasNoActionAttributeWhenActionIsEmpty()
     {
@@ -100,7 +100,7 @@ class FormHelperTableLayoutTest extends AbstractTableLayoutTest
         ]);
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         $this->engine = null;
 

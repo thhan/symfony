@@ -18,7 +18,7 @@ use Symfony\Component\Lock\Key;
 use Symfony\Component\Lock\StoreInterface;
 
 /**
- * SemaphoreStore is a StoreInterface implementation using Semaphore as store engine.
+ * SemaphoreStore is a PersistingStoreInterface implementation using Semaphore as store engine.
  *
  * @author Jérémy Derussé <jeremy@derusse.com>
  */
@@ -27,11 +27,9 @@ class SemaphoreStore implements StoreInterface, BlockingStoreInterface
     /**
      * Returns whether or not the store is supported.
      *
-     * @return bool
-     *
      * @internal
      */
-    public static function isSupported()
+    public static function isSupported(): bool
     {
         return \extension_loaded('sysvsem');
     }
@@ -59,7 +57,7 @@ class SemaphoreStore implements StoreInterface, BlockingStoreInterface
         $this->lock($key, true);
     }
 
-    private function lock(Key $key, $blocking)
+    private function lock(Key $key, bool $blocking)
     {
         if ($key->hasState(__CLASS__)) {
             return;
@@ -112,13 +110,5 @@ class SemaphoreStore implements StoreInterface, BlockingStoreInterface
     public function exists(Key $key)
     {
         return $key->hasState(__CLASS__);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function supportsWaitAndSave(): bool
-    {
-        return true;
     }
 }

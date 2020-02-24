@@ -19,7 +19,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Routing\RouteCollectionBuilder;
@@ -30,9 +30,9 @@ class ConcreteMicroKernel extends Kernel implements EventSubscriberInterface
 
     private $cacheDir;
 
-    public function onKernelException(RequestEvent $event)
+    public function onKernelException(ExceptionEvent $event)
     {
-        if ($event->getException() instanceof Danger) {
+        if ($event->getThrowable() instanceof Danger) {
             $event->setResponse(Response::create('It\'s dangerous to go alone. Take this ⚔'));
         }
     }
@@ -47,24 +47,24 @@ class ConcreteMicroKernel extends Kernel implements EventSubscriberInterface
         throw new Danger();
     }
 
-    public function registerBundles()
+    public function registerBundles(): iterable
     {
         return [
             new FrameworkBundle(),
         ];
     }
 
-    public function getCacheDir()
+    public function getCacheDir(): string
     {
         return $this->cacheDir = sys_get_temp_dir().'/sf_micro_kernel';
     }
 
-    public function getLogDir()
+    public function getLogDir(): string
     {
         return $this->cacheDir;
     }
 
-    public function __sleep()
+    public function __sleep(): array
     {
         throw new \BadMethodCallException('Cannot serialize '.__CLASS__);
     }
@@ -100,7 +100,7 @@ class ConcreteMicroKernel extends Kernel implements EventSubscriberInterface
     /**
      * {@inheritdoc}
      */
-    public static function getSubscribedEvents()
+    public static function getSubscribedEvents(): array
     {
         return [
             KernelEvents::EXCEPTION => 'onKernelException',

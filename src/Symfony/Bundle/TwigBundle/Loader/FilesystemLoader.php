@@ -47,6 +47,8 @@ class FilesystemLoader extends BaseFilesystemLoader
      * {@inheritdoc}
      *
      * The name parameter might also be a TemplateReferenceInterface.
+     *
+     * @return bool
      */
     public function exists($name)
     {
@@ -94,7 +96,7 @@ class FilesystemLoader extends BaseFilesystemLoader
                 throw $twigLoaderException;
             }
 
-            return false;
+            return null;
         }
 
         return $this->cache[$logicalName] = $file;

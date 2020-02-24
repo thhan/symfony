@@ -47,12 +47,12 @@ class CacheWarmingTest extends TestCase
         $this->assertFileExists($kernel->getCacheDir().'/twig');
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->deleteTempDir();
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         $this->deleteTempDir();
     }
@@ -79,12 +79,12 @@ class CacheWarmingKernel extends Kernel
         parent::__construct(($withTemplating ? 'with' : 'without').'_templating', true);
     }
 
-    public function getName()
+    public function getName(): string
     {
         return 'CacheWarming';
     }
 
-    public function registerBundles()
+    public function registerBundles(): iterable
     {
         return [new FrameworkBundle(), new TwigBundle()];
     }
@@ -99,6 +99,7 @@ class CacheWarmingKernel extends Kernel
                 ])
                 ->loadFromExtension('twig', [ // to be removed in 5.0 relying on default
                     'strict_variables' => false,
+                    'exception_controller' => null,
                 ])
             ;
         });
@@ -115,17 +116,17 @@ class CacheWarmingKernel extends Kernel
         }
     }
 
-    public function getProjectDir()
+    public function getProjectDir(): string
     {
         return __DIR__;
     }
 
-    public function getCacheDir()
+    public function getCacheDir(): string
     {
         return sys_get_temp_dir().'/'.Kernel::VERSION.'/CacheWarmingKernel/cache/'.$this->environment;
     }
 
-    public function getLogDir()
+    public function getLogDir(): string
     {
         return sys_get_temp_dir().'/'.Kernel::VERSION.'/CacheWarmingKernel/logs';
     }

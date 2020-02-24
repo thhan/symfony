@@ -13,6 +13,7 @@ namespace Symfony\Component\Lock\Store;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\Schema;
 use Symfony\Component\Lock\Exception\InvalidArgumentException;
 use Symfony\Component\Lock\Exception\InvalidTtlException;
@@ -22,7 +23,7 @@ use Symfony\Component\Lock\Key;
 use Symfony\Component\Lock\StoreInterface;
 
 /**
- * PdoStore is a StoreInterface implementation using a PDO connection.
+ * PdoStore is a PersistingStoreInterface implementation using a PDO connection.
  *
  * Lock metadata are stored in a table. You can use createTable() to initialize
  * a correctly defined table.
@@ -145,7 +146,7 @@ class PdoStore implements StoreInterface
      */
     public function waitAndSave(Key $key)
     {
-        @trigger_error(sprintf('%s() is deprecated since Symfony 4.4 and will be removed in Symfony 5.0.', __METHOD__));
+        @trigger_error(sprintf('%s() is deprecated since Symfony 4.4 and will be removed in Symfony 5.0.', __METHOD__), E_USER_DEPRECATED);
         throw new NotSupportedException(sprintf('The store "%s" does not supports blocking locks.', __METHOD__));
     }
 
@@ -229,8 +230,15 @@ class PdoStore implements StoreInterface
     private function getConnection()
     {
         if (null === $this->conn) {
-            $this->conn = new \PDO($this->dsn, $this->username, $this->password, $this->connectionOptions);
-            $this->conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            if (strpos($this->dsn, '://')) {
+                if (!class_exists(DriverManager::class)) {
+                    throw new InvalidArgumentException(sprintf('Failed to parse the DSN "%s". Try running "composer require doctrine/dbal".', $this->dsn));
+                }
+                $this->conn = DriverManager::getConnection(['url' => $this->dsn]);
+            } else {
+                $this->conn = new \PDO($this->dsn, $this->username, $this->password, $this->connectionOptions);
+                $this->conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            }
         }
 
         return $this->conn;
@@ -309,6 +317,7 @@ class PdoStore implements StoreInterface
         } else {
             switch ($this->driver = $con->getDriver()->getName()) {
                 case 'mysqli':
+                    throw new NotSupportedException(sprintf('The store "%s" does not support the mysqli driver, use pdo_mysql instead.', static::class));
                 case 'pdo_mysql':
                 case 'drizzle_pdo_mysql':
                     $this->driver = 'mysql';

@@ -23,8 +23,6 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * to make real HTTP requests.
  *
  * @author Fabien Potencier <fabien@symfony.com>
- *
- * @final
  */
 class HttpBrowser extends AbstractBrowser
 {
@@ -32,7 +30,7 @@ class HttpBrowser extends AbstractBrowser
 
     public function __construct(HttpClientInterface $client = null, History $history = null, CookieJar $cookieJar = null)
     {
-        if (!class_exists(HttpClient::class)) {
+        if (!$client && !class_exists(HttpClient::class)) {
             throw new \LogicException(sprintf('You cannot use "%s" as the HttpClient component is not installed. Try running "composer require symfony/http-client".', __CLASS__));
         }
 
@@ -41,7 +39,7 @@ class HttpBrowser extends AbstractBrowser
         parent::__construct([], $history, $cookieJar);
     }
 
-    protected function doRequest($request)
+    protected function doRequest($request): Response
     {
         $headers = $this->getHeaders($request);
         [$body, $extraHeaders] = $this->getBodyAndExtraHeaders($request);
@@ -75,18 +73,9 @@ class HttpBrowser extends AbstractBrowser
         }
 
         $fields = $request->getParameters();
-        $hasFile = false;
-        foreach ($request->getFiles() as $name => $file) {
-            if (!isset($file['tmp_name'])) {
-                continue;
-            }
 
-            $hasFile = true;
-            $fields[$name] = DataPart::fromPath($file['tmp_name'], $file['name']);
-        }
-
-        if ($hasFile) {
-            $part = new FormDataPart($fields);
+        if ($uploadedFiles = $this->getUploadedFiles($request->getFiles())) {
+            $part = new FormDataPart($uploadedFiles);
 
             return [$part->bodyToIterable(), $part->getPreparedHeaders()->toArray()];
         }
@@ -120,5 +109,27 @@ class HttpBrowser extends AbstractBrowser
         }
 
         return $headers;
+    }
+
+    /**
+     * Recursively go through the list. If the file has a tmp_name, convert it to a DataPart.
+     * Keep the original hierarchy.
+     */
+    private function getUploadedFiles(array $files): array
+    {
+        $uploadedFiles = [];
+        foreach ($files as $name => $file) {
+            if (!\is_array($file)) {
+                return $uploadedFiles;
+            }
+            if (!isset($file['tmp_name'])) {
+                $uploadedFiles[$name] = $this->getUploadedFiles($file);
+            }
+            if (isset($file['tmp_name'])) {
+                $uploadedFiles[$name] = DataPart::fromPath($file['tmp_name'], $file['name']);
+            }
+        }
+
+        return $uploadedFiles;
     }
 }

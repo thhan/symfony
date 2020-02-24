@@ -12,7 +12,10 @@
 namespace Symfony\Component\Validator\Tests\Mapping\Factory;
 
 use PHPUnit\Framework\TestCase;
+use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Validator\Constraints\Callback;
+use Symfony\Component\Validator\Mapping\Cache\Psr6Cache;
 use Symfony\Component\Validator\Mapping\ClassMetadata;
 use Symfony\Component\Validator\Mapping\Factory\LazyLoadingMetadataFactory;
 use Symfony\Component\Validator\Mapping\Loader\LoaderInterface;
@@ -76,46 +79,57 @@ class LazyLoadingMetadataFactoryTest extends TestCase
         $this->assertEquals($constraints, $metadata->getConstraints());
     }
 
-    public function testWriteMetadataToCache()
+    public function testCachedMetadata()
     {
-        $cache = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Cache\CacheInterface')->getMock();
+        $cache = new ArrayAdapter();
+        $factory = new LazyLoadingMetadataFactory(new TestLoader(), $cache);
+
+        $expectedConstraints = [
+            new ConstraintA(['groups' => ['Default', 'EntityParent']]),
+            new ConstraintA(['groups' => ['Default', 'EntityInterfaceA', 'EntityParent']]),
+        ];
+
+        $metadata = $factory->getMetadataFor(self::PARENT_CLASS);
+
+        $this->assertEquals(self::PARENT_CLASS, $metadata->getClassName());
+        $this->assertEquals($expectedConstraints, $metadata->getConstraints());
+
+        $loader = $this->createMock(LoaderInterface::class);
+        $loader->expects($this->never())->method('loadClassMetadata');
+
+        $factory = new LazyLoadingMetadataFactory($loader, $cache);
+
+        $metadata = $factory->getMetadataFor(self::PARENT_CLASS);
+
+        $this->assertEquals(self::PARENT_CLASS, $metadata->getClassName());
+        $this->assertEquals($expectedConstraints, $metadata->getConstraints());
+    }
+
+    /**
+     * @group legacy
+     */
+    public function testWriteMetadataToLegacyCache()
+    {
+        $cache = new Psr6Cache(new ArrayAdapter());
         $factory = new LazyLoadingMetadataFactory(new TestLoader(), $cache);
 
         $parentClassConstraints = [
             new ConstraintA(['groups' => ['Default', 'EntityParent']]),
             new ConstraintA(['groups' => ['Default', 'EntityInterfaceA', 'EntityParent']]),
         ];
-        $interfaceAConstraints = [
-            new ConstraintA(['groups' => ['Default', 'EntityInterfaceA']]),
-        ];
-
-        $cache->expects($this->never())
-              ->method('has');
-        $cache->expects($this->exactly(2))
-              ->method('read')
-              ->withConsecutive(
-                  [$this->equalTo(self::PARENT_CLASS)],
-                  [$this->equalTo(self::INTERFACE_A_CLASS)]
-              )
-              ->willReturn(false);
-        $cache->expects($this->exactly(2))
-              ->method('write')
-              ->withConsecutive(
-                  $this->callback(function ($metadata) use ($interfaceAConstraints) {
-                      return $interfaceAConstraints == $metadata->getConstraints();
-                  }),
-                  $this->callback(function ($metadata) use ($parentClassConstraints) {
-                      return $parentClassConstraints == $metadata->getConstraints();
-                  })
-              );
 
         $metadata = $factory->getMetadataFor(self::PARENT_CLASS);
 
         $this->assertEquals(self::PARENT_CLASS, $metadata->getClassName());
         $this->assertEquals($parentClassConstraints, $metadata->getConstraints());
+        $this->assertInstanceOf(ClassMetadata::class, $cache->read(self::PARENT_CLASS));
+        $this->assertInstanceOf(ClassMetadata::class, $cache->read(self::INTERFACE_A_CLASS));
     }
 
-    public function testReadMetadataFromCache()
+    /**
+     * @group legacy
+     */
+    public function testReadMetadataFromLegacyCache()
     {
         $loader = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Loader\LoaderInterface')->getMock();
         $cache = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Cache\CacheInterface')->getMock();
@@ -149,35 +163,23 @@ class LazyLoadingMetadataFactoryTest extends TestCase
         $this->assertEquals($metadata, $factory->getMetadataFor(self::PARENT_CLASS));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\NoSuchMetadataException
-     */
     public function testNonClassNameStringValues()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\NoSuchMetadataException');
         $testedValue = 'error@example.com';
         $loader = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Loader\LoaderInterface')->getMock();
-        $cache = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Cache\CacheInterface')->getMock();
+        $cache = $this->createMock(CacheItemPoolInterface::class);
         $factory = new LazyLoadingMetadataFactory($loader, $cache);
         $cache
             ->expects($this->never())
-            ->method('read');
+            ->method('getItem');
         $factory->getMetadataFor($testedValue);
     }
 
     public function testMetadataCacheWithRuntimeConstraint()
     {
-        $cache = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Cache\CacheInterface')->getMock();
+        $cache = new ArrayAdapter();
         $factory = new LazyLoadingMetadataFactory(new TestLoader(), $cache);
-
-        $cache
-            ->expects($this->any())
-            ->method('write')
-            ->willReturnCallback(function ($metadata) { serialize($metadata); })
-        ;
-
-        $cache->expects($this->any())
-            ->method('read')
-            ->willReturn(false);
 
         $metadata = $factory->getMetadataFor(self::PARENT_CLASS);
         $metadata->addConstraint(new Callback(function () {}));
@@ -211,8 +213,10 @@ class LazyLoadingMetadataFactoryTest extends TestCase
 
 class TestLoader implements LoaderInterface
 {
-    public function loadClassMetadata(ClassMetadata $metadata)
+    public function loadClassMetadata(ClassMetadata $metadata): bool
     {
         $metadata->addConstraint(new ConstraintA());
+
+        return true;
     }
 }

@@ -41,7 +41,7 @@ class ChromePhpHandler extends BaseChromePhpHandler
         }
 
         if (!preg_match(static::USER_AGENT_REGEX, $event->getRequest()->headers->get('User-Agent'))) {
-            $this->sendHeaders = false;
+            self::$sendHeaders = false;
             $this->headers = [];
 
             return;
@@ -59,7 +59,7 @@ class ChromePhpHandler extends BaseChromePhpHandler
      */
     protected function sendHeader($header, $content)
     {
-        if (!$this->sendHeaders) {
+        if (!self::$sendHeaders) {
             return;
         }
 
@@ -72,6 +72,8 @@ class ChromePhpHandler extends BaseChromePhpHandler
 
     /**
      * Override default behavior since we check it in onKernelResponse.
+     *
+     * @return bool
      */
     protected function headersAccepted()
     {

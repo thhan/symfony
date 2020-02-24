@@ -29,8 +29,6 @@ trait MicroKernelTrait
      *
      *     $routes->import('config/routing.yml');
      *     $routes->add('/admin', 'App\Controller\AdminController::dashboard', 'admin_dashboard');
-     *
-     * @param RouteCollectionBuilder $routes
      */
     abstract protected function configureRoutes(RouteCollectionBuilder $routes);
 
@@ -50,9 +48,6 @@ trait MicroKernelTrait
      * Or parameters:
      *
      *     $c->setParameter('halloween', 'lot of fun');
-     *
-     * @param ContainerBuilder $c
-     * @param LoaderInterface  $loader
      */
     abstract protected function configureContainer(ContainerBuilder $c, LoaderInterface $loader);
 
@@ -69,12 +64,18 @@ trait MicroKernelTrait
                 ],
             ]);
 
-            if ($this instanceof EventSubscriberInterface) {
+            if (!$container->hasDefinition('kernel')) {
                 $container->register('kernel', static::class)
                     ->setSynthetic(true)
                     ->setPublic(true)
-                    ->addTag('kernel.event_subscriber')
                 ;
+            }
+
+            $kernelDefinition = $container->getDefinition('kernel');
+            $kernelDefinition->addTag('routing.route_loader');
+
+            if ($this instanceof EventSubscriberInterface) {
+                $kernelDefinition->addTag('kernel.event_subscriber');
             }
 
             $this->configureContainer($container, $loader);

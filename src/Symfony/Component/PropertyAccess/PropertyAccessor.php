@@ -174,27 +174,28 @@ class PropertyAccessor implements PropertyAccessorInterface
                 $value = $zval[self::VALUE];
             }
         } catch (\TypeError $e) {
-            self::throwInvalidArgumentException($e->getMessage(), $e->getTrace(), 0, $propertyPath);
+            self::throwInvalidArgumentException($e->getMessage(), $e->getTrace(), 0, $propertyPath, $e);
 
             // It wasn't thrown in this class so rethrow it
             throw $e;
         }
     }
 
-    private static function throwInvalidArgumentException($message, $trace, $i, $propertyPath)
+    private static function throwInvalidArgumentException(string $message, array $trace, int $i, string $propertyPath, \Throwable $previous = null): void
     {
         // the type mismatch is not caused by invalid arguments (but e.g. by an incompatible return type hint of the writer method)
         if (0 !== strpos($message, 'Argument ')) {
             return;
         }
 
-        if (isset($trace[$i]['file']) && __FILE__ === $trace[$i]['file'] && \array_key_exists(0, $trace[$i]['args'])) {
+        if (isset($trace[$i]['file']) && __FILE__ === $trace[$i]['file']) {
             $pos = strpos($message, $delim = 'must be of the type ') ?: (strpos($message, $delim = 'must be an instance of ') ?: strpos($message, $delim = 'must implement interface '));
             $pos += \strlen($delim);
-            $type = $trace[$i]['args'][0];
-            $type = \is_object($type) ? \get_class($type) : \gettype($type);
+            $j = strpos($message, ',', $pos);
+            $type = substr($message, 2 + $j, strpos($message, ' given', $j) - $j - 2);
+            $message = substr($message, $pos, $j - $pos);
 
-            throw new InvalidArgumentException(sprintf('Expected argument of type "%s", "%s" given at property path "%s".', substr($message, $pos, strpos($message, ',', $pos) - $pos), $type, $propertyPath));
+            throw new InvalidArgumentException(sprintf('Expected argument of type "%s", "%s" given at property path "%s".', $message, 'NULL' === $type ? 'null' : $type, $propertyPath), 0, $previous);
         }
     }
 
@@ -264,17 +265,10 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Reads the path from an object up to a given path index.
      *
-     * @param array                 $zval                 The array containing the object or array to read from
-     * @param PropertyPathInterface $propertyPath         The property path to read
-     * @param int                   $lastIndex            The index up to which should be read
-     * @param bool                  $ignoreInvalidIndices Whether to ignore invalid indices or throw an exception
-     *
-     * @return array The values read in the path
-     *
      * @throws UnexpectedTypeException if a value within the path is neither object nor array
      * @throws NoSuchIndexException    If a non-existing index is accessed
      */
-    private function readPropertiesUntil($zval, PropertyPathInterface $propertyPath, $lastIndex, $ignoreInvalidIndices = true)
+    private function readPropertiesUntil(array $zval, PropertyPathInterface $propertyPath, int $lastIndex, bool $ignoreInvalidIndices = true): array
     {
         if (!\is_object($zval[self::VALUE]) && !\is_array($zval[self::VALUE])) {
             throw new UnexpectedTypeException($zval[self::VALUE], $propertyPath, 0);
@@ -342,14 +336,11 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Reads a key from an array-like structure.
      *
-     * @param array      $zval  The array containing the array or \ArrayAccess object to read from
      * @param string|int $index The key to read
-     *
-     * @return array The array containing the value of the key
      *
      * @throws NoSuchIndexException If the array does not implement \ArrayAccess or it is not an array
      */
-    private function readIndex($zval, $index)
+    private function readIndex(array $zval, $index): array
     {
         if (!$zval[self::VALUE] instanceof \ArrayAccess && !\is_array($zval[self::VALUE])) {
             throw new NoSuchIndexException(sprintf('Cannot read index "%s" from object of type "%s" because it doesn\'t implement \ArrayAccess.', $index, \get_class($zval[self::VALUE])));
@@ -375,15 +366,9 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Reads the a property from an object.
      *
-     * @param array  $zval                  The array containing the object to read from
-     * @param string $property              The property to read
-     * @param bool   $ignoreInvalidProperty Whether to ignore invalid property or throw an exception
-     *
-     * @return array The array containing the value of the property
-     *
      * @throws NoSuchPropertyException If $ignoreInvalidProperty is false and the property does not exist or is not public
      */
-    private function readProperty($zval, $property, bool $ignoreInvalidProperty = false)
+    private function readProperty(array $zval, string $property, bool $ignoreInvalidProperty = false): array
     {
         if (!\is_object($zval[self::VALUE])) {
             throw new NoSuchPropertyException(sprintf('Cannot read property "%s" from an array. Maybe you intended to write the property path as "[%1$s]" instead.', $property));
@@ -429,13 +414,8 @@ class PropertyAccessor implements PropertyAccessorInterface
 
     /**
      * Guesses how to read the property value.
-     *
-     * @param string $class
-     * @param string $property
-     *
-     * @return array
      */
-    private function getReadAccessInfo($class, $property)
+    private function getReadAccessInfo(string $class, string $property): array
     {
         $key = str_replace('\\', '.', $class).'..'.$property;
 
@@ -514,13 +494,12 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Sets the value of an index in a given array-accessible value.
      *
-     * @param array      $zval  The array containing the array or \ArrayAccess object to write to
      * @param string|int $index The index to write at
      * @param mixed      $value The value to write
      *
      * @throws NoSuchIndexException If the array does not implement \ArrayAccess or it is not an array
      */
-    private function writeIndex($zval, $index, $value)
+    private function writeIndex(array $zval, $index, $value)
     {
         if (!$zval[self::VALUE] instanceof \ArrayAccess && !\is_array($zval[self::VALUE])) {
             throw new NoSuchIndexException(sprintf('Cannot modify index "%s" in object of type "%s" because it doesn\'t implement \ArrayAccess.', $index, \get_class($zval[self::VALUE])));
@@ -532,13 +511,11 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Sets the value of a property in the given object.
      *
-     * @param array  $zval     The array containing the object to write to
-     * @param string $property The property to write
-     * @param mixed  $value    The value to write
+     * @param mixed $value The value to write
      *
      * @throws NoSuchPropertyException if the property does not exist or is not public
      */
-    private function writeProperty($zval, $property, $value)
+    private function writeProperty(array $zval, string $property, $value)
     {
         if (!\is_object($zval[self::VALUE])) {
             throw new NoSuchPropertyException(sprintf('Cannot write property "%s" to an array. Maybe you should write the property path as "[%1$s]" instead?', $property));
@@ -572,14 +549,8 @@ class PropertyAccessor implements PropertyAccessorInterface
 
     /**
      * Adjusts a collection-valued property by calling add*() and remove*() methods.
-     *
-     * @param array    $zval         The array containing the object to write to
-     * @param string   $property     The property to write
-     * @param iterable $collection   The collection to write
-     * @param string   $addMethod    The add*() method
-     * @param string   $removeMethod The remove*() method
      */
-    private function writeCollection($zval, $property, $collection, $addMethod, $removeMethod)
+    private function writeCollection(array $zval, string $property, iterable $collection, string $addMethod, string $removeMethod)
     {
         // At this point the add and remove methods have been found
         $previousValue = $this->readProperty($zval, $property);
@@ -792,13 +763,8 @@ class PropertyAccessor implements PropertyAccessorInterface
 
     /**
      * Searches for add and remove methods.
-     *
-     * @param \ReflectionClass $reflClass The reflection class for the given object
-     * @param array            $singulars The singular form of the property name or null
-     *
-     * @return array|null An array containing the adder and remover when found, null otherwise
      */
-    private function findAdderAndRemover(\ReflectionClass $reflClass, array $singulars)
+    private function findAdderAndRemover(\ReflectionClass $reflClass, array $singulars): iterable
     {
         foreach ($singulars as $singular) {
             $addMethod = 'add'.$singular;
@@ -819,6 +785,8 @@ class PropertyAccessor implements PropertyAccessorInterface
 
             yield $result;
         }
+
+        return null;
     }
 
     /**
@@ -874,10 +842,9 @@ class PropertyAccessor implements PropertyAccessorInterface
     /**
      * Creates the APCu adapter if applicable.
      *
-     * @param string               $namespace
-     * @param int                  $defaultLifetime
-     * @param string               $version
-     * @param LoggerInterface|null $logger
+     * @param string $namespace
+     * @param int    $defaultLifetime
+     * @param string $version
      *
      * @return AdapterInterface
      *

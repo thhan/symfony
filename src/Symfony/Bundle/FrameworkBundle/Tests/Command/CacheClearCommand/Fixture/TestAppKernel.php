@@ -19,14 +19,14 @@ use Symfony\Component\HttpKernel\Kernel;
 
 class TestAppKernel extends Kernel
 {
-    public function registerBundles()
+    public function registerBundles(): iterable
     {
         return [
             new FrameworkBundle(),
         ];
     }
 
-    public function getProjectDir()
+    public function getProjectDir(): string
     {
         return __DIR__.'/test';
     }
@@ -34,6 +34,13 @@ class TestAppKernel extends Kernel
     public function registerContainerConfiguration(LoaderInterface $loader)
     {
         $loader->load(__DIR__.\DIRECTORY_SEPARATOR.'config.yml');
+    }
+
+    public function setAnnotatedClassCache(array $annotatedClasses)
+    {
+        $annotatedClasses = array_diff($annotatedClasses, ['Symfony\Bundle\WebProfilerBundle\Controller\ExceptionController', 'Symfony\Bundle\TwigBundle\Controller\ExceptionController', 'Symfony\Bundle\TwigBundle\Controller\PreviewErrorController']);
+
+        parent::setAnnotatedClassCache($annotatedClasses);
     }
 
     protected function build(ContainerBuilder $container)

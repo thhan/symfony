@@ -31,7 +31,7 @@ class ReflectionExtractorTest extends TestCase
      */
     private $extractor;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->extractor = new ReflectionExtractor();
     }
@@ -51,6 +51,7 @@ class ReflectionExtractorTest extends TestCase
                 'h',
                 'i',
                 'j',
+                'nullableCollectionOfNonNullableElements',
                 'emptyVar',
                 'iteratorCollection',
                 'iteratorCollectionWithKey',
@@ -67,6 +68,8 @@ class ReflectionExtractorTest extends TestCase
                 '123',
                 'self',
                 'realParent',
+                'xTotals',
+                'YT',
                 'c',
                 'd',
                 'e',
@@ -95,6 +98,7 @@ class ReflectionExtractorTest extends TestCase
                 'h',
                 'i',
                 'j',
+                'nullableCollectionOfNonNullableElements',
                 'emptyVar',
                 'iteratorCollection',
                 'iteratorCollectionWithKey',
@@ -131,6 +135,7 @@ class ReflectionExtractorTest extends TestCase
                 'h',
                 'i',
                 'j',
+                'nullableCollectionOfNonNullableElements',
                 'emptyVar',
                 'iteratorCollection',
                 'iteratorCollectionWithKey',

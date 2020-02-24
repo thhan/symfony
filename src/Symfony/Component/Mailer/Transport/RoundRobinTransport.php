@@ -11,10 +11,10 @@
 
 namespace Symfony\Component\Mailer\Transport;
 
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\SentMessage;
-use Symfony\Component\Mailer\SmtpEnvelope;
 use Symfony\Component\Mime\RawMessage;
 
 /**
@@ -35,7 +35,7 @@ class RoundRobinTransport implements TransportInterface
     public function __construct(array $transports, int $retryPeriod = 60)
     {
         if (!$transports) {
-            throw new TransportException(__CLASS__.' must have at least one transport configured.');
+            throw new TransportException(sprintf('"%s" must have at least one transport configured.', static::class));
         }
 
         $this->transports = $transports;
@@ -43,7 +43,7 @@ class RoundRobinTransport implements TransportInterface
         $this->retryPeriod = $retryPeriod;
     }
 
-    public function send(RawMessage $message, SmtpEnvelope $envelope = null): ?SentMessage
+    public function send(RawMessage $message, Envelope $envelope = null): ?SentMessage
     {
         while ($transport = $this->getNextTransport()) {
             try {
@@ -54,6 +54,11 @@ class RoundRobinTransport implements TransportInterface
         }
 
         throw new TransportException('All transports failed.');
+    }
+
+    public function __toString(): string
+    {
+        return $this->getNameSymbol().'('.implode(' ', array_map('strval', $this->transports)).')';
     }
 
     /**
@@ -88,6 +93,11 @@ class RoundRobinTransport implements TransportInterface
     protected function isTransportDead(TransportInterface $transport): bool
     {
         return $this->deadTransports->contains($transport);
+    }
+
+    protected function getNameSymbol(): string
+    {
+        return 'roundrobin';
     }
 
     private function moveCursor(int $cursor): int

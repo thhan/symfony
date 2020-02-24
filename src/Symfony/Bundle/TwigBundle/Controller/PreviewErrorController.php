@@ -11,9 +11,11 @@
 
 namespace Symfony\Bundle\TwigBundle\Controller;
 
-use Symfony\Component\ErrorRenderer\Exception\FlattenException;
+use Symfony\Component\Debug\Exception\FlattenException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+
+@trigger_error(sprintf('The "%s" class is deprecated since Symfony 4.4, use the "%s" instead.', PreviewErrorController::class, \Symfony\Component\HttpKernel\Controller\ErrorController::class), E_USER_DEPRECATED);
 
 /**
  * PreviewErrorController can be used to test error pages.
@@ -21,6 +23,8 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
  * It will create a test exception and forward it to another controller.
  *
  * @author Matthias Pigulla <mp@webfactory.de>
+ *
+ * @deprecated since Symfony 4.4, use the Symfony\Component\HttpKernel\Controller\ErrorController instead.
  */
 class PreviewErrorController
 {
@@ -39,7 +43,7 @@ class PreviewErrorController
 
         /*
          * This Request mimics the parameters set by
-         * \Symfony\Component\HttpKernel\EventListener\ExceptionListener::duplicateRequest, with
+         * \Symfony\Component\HttpKernel\EventListener\ErrorListener::duplicateRequest, with
          * the additional "showException" flag.
          */
 

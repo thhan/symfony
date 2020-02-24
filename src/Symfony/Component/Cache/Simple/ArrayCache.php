@@ -35,7 +35,6 @@ class ArrayCache implements Psr16CacheInterface, LoggerAwareInterface, Resettabl
     private $defaultLifetime;
 
     /**
-     * @param int  $defaultLifetime
      * @param bool $storeSerialized Disabling serialization can lead to cache corruptions when storing mutable values but increases performance otherwise
      */
     public function __construct(int $defaultLifetime = 0, bool $storeSerialized = true)
@@ -67,6 +66,8 @@ class ArrayCache implements Psr16CacheInterface, LoggerAwareInterface, Resettabl
 
     /**
      * {@inheritdoc}
+     *
+     * @return iterable
      */
     public function getMultiple($keys, $default = null)
     {
@@ -86,6 +87,8 @@ class ArrayCache implements Psr16CacheInterface, LoggerAwareInterface, Resettabl
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function deleteMultiple($keys)
     {
@@ -101,6 +104,8 @@ class ArrayCache implements Psr16CacheInterface, LoggerAwareInterface, Resettabl
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function set($key, $value, $ttl = null)
     {
@@ -113,6 +118,8 @@ class ArrayCache implements Psr16CacheInterface, LoggerAwareInterface, Resettabl
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function setMultiple($values, $ttl = null)
     {

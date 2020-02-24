@@ -1,6 +1,13 @@
 CHANGELOG
 =========
 
+4.4.0
+-----
+
+ * deprecated the `XmlEncoder::TYPE_CASE_ATTRIBUTES` constant, use `XmlEncoder::TYPE_CAST_ATTRIBUTES` instead
+ * added option to output a UTF-8 BOM in CSV encoder via `CsvEncoder::OUTPUT_UTF8_BOM_KEY` context option
+ * added `ProblemNormalizer` to normalize errors according to the API Problem spec (RFC 7807)
+
 4.3.0
 -----
 
@@ -138,7 +145,7 @@ CHANGELOG
 
  * added `$context` support for XMLEncoder.
  * [DEPRECATION] JsonEncode and JsonDecode where modified to throw
-   an exception if error found. No need for get*Error() functions
+   an exception if error found. No need for `get*Error()` functions
 
 2.3.0
 -----

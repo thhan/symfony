@@ -57,7 +57,7 @@ class GetSetMethodNormalizer extends AbstractObjectNormalizer
      */
     public function hasCacheableSupportsMethod(): bool
     {
-        return __CLASS__ === \get_class($this);
+        return __CLASS__ === static::class;
     }
 
     /**
@@ -139,6 +139,8 @@ class GetSetMethodNormalizer extends AbstractObjectNormalizer
         if (\is_callable([$object, $haser])) {
             return $object->$haser();
         }
+
+        return null;
     }
 
     /**

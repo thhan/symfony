@@ -75,12 +75,12 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
     /**
      * {@inheritdoc}
      */
-    public function getProperties($class, array $context = [])
+    public function getProperties($class, array $context = []): ?array
     {
         try {
             $reflectionClass = new \ReflectionClass($class);
         } catch (\ReflectionException $e) {
-            return;
+            return null;
         }
 
         $propertyFlags = 0;
@@ -119,8 +119,8 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
             if (!$propertyName || isset($properties[$propertyName])) {
                 continue;
             }
-            if (!$reflectionClass->hasProperty($propertyName) && !preg_match('/^[A-Z]{2,}/', $propertyName)) {
-                $propertyName = lcfirst($propertyName);
+            if ($reflectionClass->hasProperty($lowerCasedPropertyName = lcfirst($propertyName)) || (!$reflectionClass->hasProperty($propertyName) && !preg_match('/^[A-Z]{2,}/', $propertyName))) {
+                $propertyName = $lowerCasedPropertyName;
             }
             $properties[$propertyName] = $propertyName;
         }
@@ -131,7 +131,7 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
     /**
      * {@inheritdoc}
      */
-    public function getTypes($class, $property, array $context = [])
+    public function getTypes($class, $property, array $context = []): ?array
     {
         if ($fromMutator = $this->extractFromMutator($class, $property)) {
             return $fromMutator;
@@ -151,12 +151,14 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
         if ($fromDefaultValue = $this->extractFromDefaultValue($class, $property)) {
             return $fromDefaultValue;
         }
+
+        return null;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function isReadable($class, $property, array $context = [])
+    public function isReadable($class, $property, array $context = []): ?bool
     {
         if ($this->isAllowedProperty($class, $property)) {
             return true;
@@ -170,7 +172,7 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
     /**
      * {@inheritdoc}
      */
-    public function isWritable($class, $property, array $context = [])
+    public function isWritable($class, $property, array $context = []): ?bool
     {
         if ($this->isAllowedProperty($class, $property)) {
             return true;
@@ -292,7 +294,7 @@ class ReflectionExtractor implements PropertyListExtractorInterface, PropertyTyp
         return null;
     }
 
-    private function extractFromDefaultValue(string $class, string $property)
+    private function extractFromDefaultValue(string $class, string $property): ?array
     {
         try {
             $reflectionClass = new \ReflectionClass($class);

@@ -16,11 +16,11 @@ use Symfony\Component\Security\Core\Encoder\BasePasswordEncoder;
 
 class PasswordEncoder extends BasePasswordEncoder
 {
-    public function encodePassword($raw, $salt)
+    public function encodePassword($raw, $salt): string
     {
     }
 
-    public function isPasswordValid($encoded, $raw, $salt)
+    public function isPasswordValid($encoded, $raw, $salt): bool
     {
     }
 }
@@ -46,11 +46,9 @@ class BasePasswordEncoderTest extends TestCase
         $this->assertEquals('password', $this->invokeMergePasswordAndSalt('password', ''));
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testMergePasswordAndSaltWithException()
     {
+        $this->expectException('InvalidArgumentException');
         $this->invokeMergePasswordAndSalt('password', '{foo}');
     }
 

@@ -14,9 +14,12 @@ namespace Symfony\Component\Validator\Tests\Mapping\Cache;
 use Doctrine\Common\Cache\ArrayCache;
 use Symfony\Component\Validator\Mapping\Cache\DoctrineCache;
 
+/**
+ * @group legacy
+ */
 class DoctrineCacheTest extends AbstractCacheTest
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->cache = new DoctrineCache(new ArrayCache());
     }

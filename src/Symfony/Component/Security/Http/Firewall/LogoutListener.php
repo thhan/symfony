@@ -30,7 +30,7 @@ use Symfony\Component\Security\Http\ParameterBagUtils;
  *
  * @final since Symfony 4.3
  */
-class LogoutListener implements ListenerInterface
+class LogoutListener extends AbstractListener implements ListenerInterface
 {
     use LegacyListenerTrait;
 
@@ -42,11 +42,7 @@ class LogoutListener implements ListenerInterface
     private $csrfTokenManager;
 
     /**
-     * @param TokenStorageInterface          $tokenStorage
-     * @param HttpUtils                      $httpUtils        An HttpUtils instance
-     * @param LogoutSuccessHandlerInterface  $successHandler   A LogoutSuccessHandlerInterface instance
-     * @param array                          $options          An array of options to process a logout attempt
-     * @param CsrfTokenManagerInterface|null $csrfTokenManager A CsrfTokenManagerInterface instance
+     * @param array $options An array of options to process a logout attempt
      */
     public function __construct(TokenStorageInterface $tokenStorage, HttpUtils $httpUtils, LogoutSuccessHandlerInterface $successHandler, array $options = [], CsrfTokenManagerInterface $csrfTokenManager = null)
     {
@@ -68,6 +64,14 @@ class LogoutListener implements ListenerInterface
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function supports(Request $request): ?bool
+    {
+        return $this->requiresLogout($request);
+    }
+
+    /**
      * Performs the logout if requested.
      *
      * If a CsrfTokenManagerInterface instance is available, it will be used to
@@ -76,13 +80,9 @@ class LogoutListener implements ListenerInterface
      * @throws LogoutException   if the CSRF token is invalid
      * @throws \RuntimeException if the LogoutSuccessHandlerInterface instance does not return a response
      */
-    public function __invoke(RequestEvent $event)
+    public function authenticate(RequestEvent $event)
     {
         $request = $event->getRequest();
-
-        if (!$this->requiresLogout($request)) {
-            return;
-        }
 
         if (null !== $this->csrfTokenManager) {
             $csrfToken = ParameterBagUtils::getRequestParameterValue($request, $this->options['csrf_parameter']);

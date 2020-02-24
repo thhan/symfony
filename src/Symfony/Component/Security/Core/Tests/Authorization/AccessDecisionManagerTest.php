@@ -17,11 +17,9 @@ use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 
 class AccessDecisionManagerTest extends TestCase
 {
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testSetUnsupportedStrategy()
     {
+        $this->expectException('InvalidArgumentException');
         new AccessDecisionManager([$this->getVoter(VoterInterface::ACCESS_GRANTED)], 'fooBar');
     }
 
@@ -39,7 +37,7 @@ class AccessDecisionManagerTest extends TestCase
     /**
      * @dataProvider getStrategiesWith2RolesTests
      */
-    public function testStrategiesWith2Roles($token, $strategy, $voter, $expected)
+    public function testLegacyStrategiesWith2Roles($token, $strategy, $voter, $expected)
     {
         $manager = new AccessDecisionManager([$voter], $strategy);
 
