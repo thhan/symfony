@@ -64,7 +64,7 @@ class SwiftMailerHandler extends BaseSwiftMailerHandler
     /**
      * {@inheritdoc}
      */
-    public function reset()
+    public function reset(): void
     {
         $this->flushMemorySpool();
     }

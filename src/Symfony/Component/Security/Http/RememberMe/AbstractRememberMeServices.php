@@ -22,6 +22,7 @@ use Symfony\Component\Security\Core\Exception\CookieTheftException;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UsernameNotFoundException;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Component\Security\Http\Logout\LogoutHandlerInterface;
 use Symfony\Component\Security\Http\ParameterBagUtils;
 
@@ -46,13 +47,16 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
     /**
      * @throws \InvalidArgumentException
      */
-    public function __construct(array $userProviders, string $secret, string $providerKey, array $options = [], LoggerInterface $logger = null)
+    public function __construct(iterable $userProviders, string $secret, string $providerKey, array $options = [], LoggerInterface $logger = null)
     {
         if (empty($secret)) {
             throw new \InvalidArgumentException('$secret must not be empty.');
         }
         if (empty($providerKey)) {
             throw new \InvalidArgumentException('$providerKey must not be empty.');
+        }
+        if (!\is_array($userProviders) && !$userProviders instanceof \Countable) {
+            $userProviders = iterator_to_array($userProviders, false);
         }
         if (0 === \count($userProviders)) {
             throw new \InvalidArgumentException('You must provide at least one user provider.');
@@ -93,6 +97,10 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
      */
     final public function autoLogin(Request $request): ?TokenInterface
     {
+        if (($cookie = $request->attributes->get(self::COOKIE_ATTR_NAME)) && null === $cookie->getValue()) {
+            return null;
+        }
+
         if (null === $cookie = $request->cookies->get($this->options['name'])) {
             return null;
         }
@@ -221,7 +229,7 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
      */
     abstract protected function onLoginSuccess(Request $request, Response $response, TokenInterface $token);
 
-    final protected function getUserProvider($class)
+    final protected function getUserProvider(string $class): UserProviderInterface
     {
         foreach ($this->userProviders as $provider) {
             if ($provider->supportsClass($class)) {
@@ -229,17 +237,15 @@ abstract class AbstractRememberMeServices implements RememberMeServicesInterface
             }
         }
 
-        throw new UnsupportedUserException(sprintf('There is no user provider that supports class "%s".', $class));
+        throw new UnsupportedUserException(sprintf('There is no user provider for user "%s". Shouldn\'t the "supportsClass()" method of your user provider return true for this classname?', $class));
     }
 
     /**
      * Decodes the raw cookie value.
      *
-     * @param string $rawCookie
-     *
      * @return array
      */
-    protected function decodeCookie($rawCookie)
+    protected function decodeCookie(string $rawCookie)
     {
         return explode(self::COOKIE_DELIMITER, base64_decode($rawCookie));
     }

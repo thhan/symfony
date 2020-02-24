@@ -23,9 +23,9 @@ abstract class WebTestCase extends KernelTestCase
 {
     use WebTestAssertionsTrait;
 
-    protected function doTearDown(): void
+    protected function tearDown(): void
     {
-        parent::doTearDown();
+        parent::tearDown();
         self::getClient(null);
     }
 
@@ -39,7 +39,7 @@ abstract class WebTestCase extends KernelTestCase
      */
     protected static function createClient(array $options = [], array $server = [])
     {
-        if (true === static::$booted) {
+        if (static::$booted) {
             throw new \LogicException(sprintf('Booting the kernel before calling %s() is not supported, the kernel should only be booted once.', __METHOD__));
         }
 

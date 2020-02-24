@@ -37,7 +37,17 @@ class TransportFactory implements TransportFactoryInterface
             }
         }
 
-        throw new InvalidArgumentException(sprintf('No transport supports the given Messenger DSN "%s".', $dsn));
+        // Help the user to select Symfony packages based on protocol.
+        $packageSuggestion = '';
+        if ('amqp://' === substr($dsn, 0, 7)) {
+            $packageSuggestion = ' Run "composer require symfony/amqp-messenger" to install AMQP transport.';
+        } elseif ('doctrine://' === substr($dsn, 0, 11)) {
+            $packageSuggestion = ' Run "composer require symfony/doctrine-messenger" to install Doctrine transport.';
+        } elseif ('redis://' === substr($dsn, 0, 8)) {
+            $packageSuggestion = ' Run "composer require symfony/redis-messenger" to install Redis transport.';
+        }
+
+        throw new InvalidArgumentException(sprintf('No transport supports the given Messenger DSN "%s".%s', $dsn, $packageSuggestion));
     }
 
     public function supports(string $dsn, array $options): bool

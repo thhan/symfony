@@ -234,9 +234,6 @@ class PhpEngine implements EngineInterface, \ArrayAccess
         $this->addHelpers($helpers);
     }
 
-    /**
-     * Sets a helper.
-     */
     public function set(HelperInterface $helper, string $alias = null)
     {
         $this->helpers[$helper->getName()] = $helper;
@@ -288,7 +285,7 @@ class PhpEngine implements EngineInterface, \ArrayAccess
      *
      * @param mixed $value A variable to escape
      *
-     * @return string The escaped value
+     * @return mixed The escaped value
      */
     public function escape($value, string $context = 'html')
     {

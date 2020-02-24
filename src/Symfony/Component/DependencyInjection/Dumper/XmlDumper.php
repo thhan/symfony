@@ -12,6 +12,7 @@
 namespace Symfony\Component\DependencyInjection\Dumper;
 
 use Symfony\Component\DependencyInjection\Alias;
+use Symfony\Component\DependencyInjection\Argument\AbstractArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
@@ -91,9 +92,6 @@ class XmlDumper extends Dumper
         }
     }
 
-    /**
-     * Adds a service.
-     */
     private function addService(Definition $definition, ?string $id, \DOMElement $parent)
     {
         $service = $this->document->createElement('service');
@@ -119,9 +117,15 @@ class XmlDumper extends Dumper
         if ($definition->isLazy()) {
             $service->setAttribute('lazy', 'true');
         }
-        if (null !== $decorated = $definition->getDecoratedService()) {
-            list($decorated, $renamedId, $priority) = $decorated;
+        if (null !== $decoratedService = $definition->getDecoratedService()) {
+            list($decorated, $renamedId, $priority) = $decoratedService;
             $service->setAttribute('decorates', $decorated);
+
+            $decorationOnInvalid = $decoratedService[3] ?? ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE;
+            if (\in_array($decorationOnInvalid, [ContainerInterface::IGNORE_ON_INVALID_REFERENCE, ContainerInterface::NULL_ON_INVALID_REFERENCE], true)) {
+                $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE === $decorationOnInvalid ? 'null' : 'ignore';
+                $service->setAttribute('decoration-on-invalid', $invalidBehavior);
+            }
             if (null !== $renamedId) {
                 $service->setAttribute('decoration-inner-name', $renamedId);
             }
@@ -211,9 +215,6 @@ class XmlDumper extends Dumper
         $parent->appendChild($service);
     }
 
-    /**
-     * Adds a service alias.
-     */
     private function addServiceAlias(string $alias, Alias $id, \DOMElement $parent)
     {
         $service = $this->document->createElement('service');
@@ -255,9 +256,6 @@ class XmlDumper extends Dumper
         $parent->appendChild($services);
     }
 
-    /**
-     * Converts parameters.
-     */
     private function convertParameters(array $parameters, string $type, \DOMElement $parent, string $keyAttribute = 'key')
     {
         $withKeys = array_keys($parameters) !== range(0, \count($parameters) - 1);
@@ -282,6 +280,9 @@ class XmlDumper extends Dumper
 
                     if (null !== $tag->getDefaultIndexMethod()) {
                         $element->setAttribute('default-index-method', $tag->getDefaultIndexMethod());
+                    }
+                    if (null !== $tag->getDefaultPriorityMethod()) {
+                        $element->setAttribute('default-priority-method', $tag->getDefaultPriorityMethod());
                     }
                 }
             } elseif ($value instanceof IteratorArgument) {
@@ -312,10 +313,23 @@ class XmlDumper extends Dumper
                 $element->setAttribute('type', 'binary');
                 $text = $this->document->createTextNode(self::phpToXml(base64_encode($value)));
                 $element->appendChild($text);
+            } elseif ($value instanceof AbstractArgument) {
+                $argKey = $value->getArgumentKey();
+                if (!is_numeric($argKey)) {
+                    $element->setAttribute('key', $argKey);
+                }
+                $element->setAttribute('type', 'abstract');
+                $text = $this->document->createTextNode(self::phpToXml($value->getText()));
+                $element->appendChild($text);
             } else {
                 if (\in_array($value, ['null', 'true', 'false'], true)) {
                     $element->setAttribute('type', 'string');
                 }
+
+                if (\is_string($value) && (is_numeric($value) || preg_match('/^0b[01]*$/', $value) || preg_match('/^0x[0-9a-f]++$/i', $value))) {
+                    $element->setAttribute('type', 'string');
+                }
+
                 $text = $this->document->createTextNode(self::phpToXml($value));
                 $element->appendChild($text);
             }
@@ -325,10 +339,8 @@ class XmlDumper extends Dumper
 
     /**
      * Escapes arguments.
-     *
-     * @return array
      */
-    private function escape(array $arguments)
+    private function escape(array $arguments): array
     {
         $args = [];
         foreach ($arguments as $k => $v) {
@@ -349,11 +361,9 @@ class XmlDumper extends Dumper
      *
      * @param mixed $value Value to convert
      *
-     * @return string
-     *
      * @throws RuntimeException When trying to dump object or resource
      */
-    public static function phpToXml($value)
+    public static function phpToXml($value): string
     {
         switch (true) {
             case null === $value:

@@ -13,6 +13,13 @@ namespace Symfony\Component\Form\Extension\Core\Type;
 
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\ChoiceList\ChoiceListInterface;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\ChoiceAttr;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\ChoiceFieldName;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\ChoiceLabel;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\ChoiceLoader;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\ChoiceValue;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\GroupBy;
+use Symfony\Component\Form\ChoiceList\Factory\Cache\PreferredChoice;
 use Symfony\Component\Form\ChoiceList\Factory\CachingFactoryDecorator;
 use Symfony\Component\Form\ChoiceList\Factory\ChoiceListFactoryInterface;
 use Symfony\Component\Form\ChoiceList\Factory\DefaultChoiceListFactory;
@@ -251,7 +258,7 @@ class ChoiceType extends AbstractType
     {
         $emptyData = function (Options $options) {
             if ($options['expanded'] && !$options['multiple']) {
-                return;
+                return null;
             }
 
             if ($options['multiple']) {
@@ -268,13 +275,13 @@ class ChoiceType extends AbstractType
         $placeholderNormalizer = function (Options $options, $placeholder) {
             if ($options['multiple']) {
                 // never use an empty value for this case
-                return;
+                return null;
             } elseif ($options['required'] && ($options['expanded'] || isset($options['attr']['size']) && $options['attr']['size'] > 1)) {
                 // placeholder for required radio buttons or a select with size > 1 does not make sense
-                return;
+                return null;
             } elseif (false === $placeholder) {
                 // an empty value should be added but the user decided otherwise
-                return;
+                return null;
             } elseif ($options['expanded'] && '' === $placeholder) {
                 // never use an empty label for radio buttons
                 return 'None';
@@ -324,13 +331,13 @@ class ChoiceType extends AbstractType
 
         $resolver->setAllowedTypes('choices', ['null', 'array', '\Traversable']);
         $resolver->setAllowedTypes('choice_translation_domain', ['null', 'bool', 'string']);
-        $resolver->setAllowedTypes('choice_loader', ['null', 'Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface']);
-        $resolver->setAllowedTypes('choice_label', ['null', 'bool', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
-        $resolver->setAllowedTypes('choice_name', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
-        $resolver->setAllowedTypes('choice_value', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
-        $resolver->setAllowedTypes('choice_attr', ['null', 'array', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
-        $resolver->setAllowedTypes('preferred_choices', ['array', '\Traversable', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
-        $resolver->setAllowedTypes('group_by', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath']);
+        $resolver->setAllowedTypes('choice_loader', ['null', 'Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface', ChoiceLoader::class]);
+        $resolver->setAllowedTypes('choice_label', ['null', 'bool', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', ChoiceLabel::class]);
+        $resolver->setAllowedTypes('choice_name', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', ChoiceFieldName::class]);
+        $resolver->setAllowedTypes('choice_value', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', ChoiceValue::class]);
+        $resolver->setAllowedTypes('choice_attr', ['null', 'array', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', ChoiceAttr::class]);
+        $resolver->setAllowedTypes('preferred_choices', ['array', '\Traversable', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', PreferredChoice::class]);
+        $resolver->setAllowedTypes('group_by', ['null', 'callable', 'string', 'Symfony\Component\PropertyAccess\PropertyPath', GroupBy::class]);
     }
 
     /**
@@ -362,9 +369,6 @@ class ChoiceType extends AbstractType
         }
     }
 
-    /**
-     * @return mixed
-     */
     private function addSubForm(FormBuilderInterface $builder, string $name, ChoiceView $choiceView, array $options)
     {
         $choiceOpts = [
@@ -376,12 +380,12 @@ class ChoiceType extends AbstractType
         ];
 
         if ($options['multiple']) {
-            $choiceType = __NAMESPACE__.'\CheckboxType';
+            $choiceType = CheckboxType::class;
             // The user can check 0 or more checkboxes. If required
             // is true, they are required to check all of them.
             $choiceOpts['required'] = false;
         } else {
-            $choiceType = __NAMESPACE__.'\RadioType';
+            $choiceType = RadioType::class;
         }
 
         $builder->add($name, $choiceType, $choiceOpts);

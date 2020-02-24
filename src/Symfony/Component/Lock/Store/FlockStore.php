@@ -16,10 +16,9 @@ use Symfony\Component\Lock\Exception\InvalidArgumentException;
 use Symfony\Component\Lock\Exception\LockConflictedException;
 use Symfony\Component\Lock\Exception\LockStorageException;
 use Symfony\Component\Lock\Key;
-use Symfony\Component\Lock\StoreInterface;
 
 /**
- * FlockStore is a StoreInterface implementation using the FileSystem flock.
+ * FlockStore is a PersistingStoreInterface implementation using the FileSystem flock.
  *
  * Original implementation in \Symfony\Component\Filesystem\LockHandler.
  *
@@ -28,7 +27,7 @@ use Symfony\Component\Lock\StoreInterface;
  * @author Romain Neutron <imprec@gmail.com>
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class FlockStore implements StoreInterface, BlockingStoreInterface
+class FlockStore implements BlockingStoreInterface
 {
     private $lockPath;
 
@@ -65,15 +64,7 @@ class FlockStore implements StoreInterface, BlockingStoreInterface
         $this->lock($key, true);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function supportsWaitAndSave(): bool
-    {
-        return true;
-    }
-
-    private function lock(Key $key, $blocking)
+    private function lock(Key $key, bool $blocking)
     {
         // The lock is maybe already acquired.
         if ($key->hasState(__CLASS__)) {
@@ -115,7 +106,7 @@ class FlockStore implements StoreInterface, BlockingStoreInterface
     /**
      * {@inheritdoc}
      */
-    public function putOffExpiration(Key $key, $ttl)
+    public function putOffExpiration(Key $key, float $ttl)
     {
         // do nothing, the flock locks forever.
     }

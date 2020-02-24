@@ -193,7 +193,7 @@ class PropertyPathBuilder
     /**
      * Returns the current property path.
      *
-     * @return PropertyPathInterface The constructed property path
+     * @return PropertyPathInterface|null The constructed property path
      */
     public function getPropertyPath()
     {
@@ -228,10 +228,6 @@ class PropertyPathBuilder
      * Resizes the path so that a chunk of length $cutLength is
      * removed at $offset and another chunk of length $insertionLength
      * can be inserted.
-     *
-     * @param int $offset          The offset where the removed chunk starts
-     * @param int $cutLength       The length of the removed chunk
-     * @param int $insertionLength The length of the inserted chunk
      */
     private function resize(int $offset, int $cutLength, int $insertionLength)
     {

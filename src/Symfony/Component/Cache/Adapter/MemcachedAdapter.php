@@ -28,7 +28,7 @@ class MemcachedAdapter extends AbstractAdapter
         'persistent_id' => null,
         'username' => null,
         'password' => null,
-        'serializer' => 'php',
+        \Memcached::OPT_SERIALIZER => \Memcached::SERIALIZER_PHP,
     ];
 
     private $marshaller;
@@ -316,10 +316,7 @@ class MemcachedAdapter extends AbstractAdapter
         throw new CacheException(sprintf('MemcachedAdapter client error: %s.', strtolower($this->client->getResultMessage())));
     }
 
-    /**
-     * @return \Memcached
-     */
-    private function getClient()
+    private function getClient(): \Memcached
     {
         if ($this->client) {
             return $this->client;

@@ -22,6 +22,7 @@ Symfony\Component\Form\Extension\Core\Type\ChoiceType (Block prefix: "choice")
                                                    help_html                                             
                                                    help_translation_parameters                           
                                                    inherit_data                                          
+                                                   is_empty_callback                                     
                                                    label                                                 
                                                    label_attr                                            
                                                    label_format                                          
@@ -31,6 +32,7 @@ Symfony\Component\Form\Extension\Core\Type\ChoiceType (Block prefix: "choice")
                                                    post_max_size_message                                 
                                                    property_path                                         
                                                    required                                              
+                                                   row_attr                                              
                                                    translation_domain                                    
                                                    upload_max_size_message                               
  --------------------------- -------------------- ------------------------------ ----------------------- 

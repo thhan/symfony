@@ -11,7 +11,7 @@
 
 namespace Symfony\Bundle\SecurityBundle\Tests\Functional;
 
-class SecurityRoutingIntegrationTest extends WebTestCase
+class SecurityRoutingIntegrationTest extends AbstractWebTestCase
 {
     /**
      * @dataProvider getConfigs
@@ -127,6 +127,16 @@ class SecurityRoutingIntegrationTest extends WebTestCase
 
         $client = $this->createClient(['test_case' => 'StandardFormLogin', 'root_config' => 'invalid_ip_access_control.yml']);
         $client->request('GET', '/unprotected_resource');
+    }
+
+    public function testPublicHomepage()
+    {
+        $client = $this->createClient(['test_case' => 'StandardFormLogin', 'root_config' => 'config.yml']);
+        $client->request('GET', '/en/');
+
+        $this->assertEquals(200, $client->getResponse()->getStatusCode(), (string) $client->getResponse());
+        $this->assertTrue($client->getResponse()->headers->getCacheControlDirective('public'));
+        $this->assertSame(0, self::$container->get('session')->getUsageIndex());
     }
 
     private function assertAllowed($client, $path)

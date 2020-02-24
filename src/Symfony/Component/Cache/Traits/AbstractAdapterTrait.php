@@ -93,6 +93,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function hasItem($key)
     {
@@ -113,6 +115,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function clear(string $prefix = '')
     {
@@ -141,6 +145,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function deleteItem($key)
     {
@@ -149,6 +155,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function deleteItems(array $keys)
     {
@@ -203,11 +211,13 @@ trait AbstractAdapterTrait
             foreach ($this->doFetch([$id]) as $value) {
                 $isHit = true;
             }
+
+            return $f($key, $value, $isHit);
         } catch (\Exception $e) {
             CacheItem::log($this->logger, 'Failed to fetch key "{key}": '.$e->getMessage(), ['key' => $key, 'exception' => $e]);
         }
 
-        return $f($key, $value, $isHit);
+        return $f($key, null, false);
     }
 
     /**
@@ -236,6 +246,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function save(CacheItemInterface $item)
     {
@@ -249,6 +261,8 @@ trait AbstractAdapterTrait
 
     /**
      * {@inheritdoc}
+     *
+     * @return bool
      */
     public function saveDeferred(CacheItemInterface $item)
     {
@@ -294,6 +308,16 @@ trait AbstractAdapterTrait
         $this->ids = [];
     }
 
+    public function __sleep()
+    {
+        throw new \BadMethodCallException('Cannot serialize '.__CLASS__);
+    }
+
+    public function __wakeup()
+    {
+        throw new \BadMethodCallException('Cannot unserialize '.__CLASS__);
+    }
+
     public function __destruct()
     {
         if ($this->deferred) {
@@ -301,7 +325,7 @@ trait AbstractAdapterTrait
         }
     }
 
-    private function generateItems($items, &$keys)
+    private function generateItems(iterable $items, array &$keys): iterable
     {
         $f = $this->createCacheItem;
 

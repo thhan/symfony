@@ -34,6 +34,7 @@ class Route
     private $locale;
     private $format;
     private $utf8;
+    private $priority;
 
     /**
      * @param array $data An array of key/value parameters
@@ -43,7 +44,7 @@ class Route
     public function __construct(array $data)
     {
         if (isset($data['localized_paths'])) {
-            throw new \BadMethodCallException(sprintf('Unknown property "localized_paths" on annotation "%s".', \get_class($this)));
+            throw new \BadMethodCallException(sprintf('Unknown property "localized_paths" on annotation "%s".', static::class));
         }
 
         if (isset($data['value'])) {
@@ -74,7 +75,7 @@ class Route
         foreach ($data as $key => $value) {
             $method = 'set'.str_replace('_', '', $key);
             if (!method_exists($this, $method)) {
-                throw new \BadMethodCallException(sprintf('Unknown property "%s" on annotation "%s".', $key, \get_class($this)));
+                throw new \BadMethodCallException(sprintf('Unknown property "%s" on annotation "%s".', $key, static::class));
             }
             $this->$method($value);
         }
@@ -178,5 +179,15 @@ class Route
     public function getCondition()
     {
         return $this->condition;
+    }
+
+    public function setPriority(int $priority): void
+    {
+        $this->priority = $priority;
+    }
+
+    public function getPriority(): ?int
+    {
+        return $this->priority;
     }
 }

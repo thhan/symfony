@@ -31,7 +31,7 @@ class XmlReferenceDumper
         return $this->dumpNode($configuration->getConfigTreeBuilder()->buildTree(), $namespace);
     }
 
-    public function dumpNode(NodeInterface $node, $namespace = null)
+    public function dumpNode(NodeInterface $node, string $namespace = null)
     {
         $this->reference = '';
         $this->writeNode($node, 0, true, $namespace);
@@ -91,7 +91,7 @@ class XmlReferenceDumper
                 }
 
                 if ($prototype instanceof PrototypedArrayNode) {
-                    $prototype->setName($key);
+                    $prototype->setName($key ?? '');
                     $children = [$key => $prototype];
                 } elseif ($prototype instanceof ArrayNode) {
                     $children = $prototype->getChildren();
@@ -296,5 +296,7 @@ class XmlReferenceDumper
         if (\is_array($value)) {
             return implode(',', $value);
         }
+
+        return '';
     }
 }

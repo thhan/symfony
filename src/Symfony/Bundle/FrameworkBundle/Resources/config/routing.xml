@@ -25,7 +25,7 @@
             <argument type="service" id="file_locator" />
         </service>
 
-        <service id="routing.loader.php" class="Symfony\Component\Routing\Loader\PhpFileLoader">
+        <service id="routing.loader.php" class="Symfony\Bundle\FrameworkBundle\Routing\Loader\PhpFileLoader">
             <tag name="routing.loader" />
             <argument type="service" id="file_locator" />
         </service>
@@ -40,13 +40,14 @@
             <argument type="service" id="file_locator" />
         </service>
 
-        <service id="routing.loader.service" class="Symfony\Component\Routing\Loader\DependencyInjection\ServiceRouterLoader">
+        <service id="routing.loader.container" class="Symfony\Component\Routing\Loader\ContainerLoader">
             <tag name="routing.loader" />
-            <argument type="service" id="service_container" />
+            <argument type="tagged_locator" tag="routing.route_loader" />
         </service>
 
         <service id="routing.loader" class="Symfony\Bundle\FrameworkBundle\Routing\DelegatingLoader" public="true">
             <argument type="service" id="routing.resolver" />
+            <argument type="collection" />
             <argument type="collection" />
         </service>
 
@@ -79,10 +80,10 @@
         <service id="Symfony\Component\Routing\RequestContextAwareInterface" alias="router" />
 
         <service id="router.request_context" class="Symfony\Component\Routing\RequestContext">
-            <argument>%router.request_context.base_url%</argument>
+            <argument></argument> <!-- base_url -->
             <argument>GET</argument>
-            <argument>%router.request_context.host%</argument>
-            <argument>%router.request_context.scheme%</argument>
+            <argument></argument> <!-- host -->
+            <argument></argument> <!-- scheme -->
             <argument>%request_listener.http_port%</argument>
             <argument>%request_listener.https_port%</argument>
         </service>

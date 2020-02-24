@@ -38,17 +38,13 @@ class ArrayNode extends BaseNode implements PrototypeNodeInterface
     }
 
     /**
-     * Normalizes keys between the different configuration formats.
+     * {@inheritdoc}
      *
      * Namely, you mostly have foo_bar in YAML while you have foo-bar in XML.
      * After running this method, all keys are normalized to foo_bar.
      *
      * If you have a mixed key like foo-bar_moo, it will not be altered.
      * The key will also not be altered if the target key already exists.
-     *
-     * @param mixed $value
-     *
-     * @return array The value with normalized keys
      */
     protected function preNormalize($value)
     {
@@ -231,7 +227,7 @@ class ArrayNode extends BaseNode implements PrototypeNodeInterface
             }
 
             if ($child->isDeprecated()) {
-                @trigger_error($child->getDeprecationMessage($name, $this->getPath()), E_USER_DEPRECATED);
+                trigger_deprecation('', '', $child->getDeprecationMessage($name, $this->getPath()));
             }
 
             try {
@@ -332,11 +328,9 @@ class ArrayNode extends BaseNode implements PrototypeNodeInterface
     /**
      * Remaps multiple singular values to a single plural value.
      *
-     * @param array $value The source values
-     *
      * @return array The remapped values
      */
-    protected function remapXml($value)
+    protected function remapXml(array $value)
     {
         foreach ($this->xmlRemappings as list($singular, $plural)) {
             if (!isset($value[$singular])) {
@@ -388,7 +382,12 @@ class ArrayNode extends BaseNode implements PrototypeNodeInterface
             }
 
             if (!isset($this->children[$k])) {
-                throw new \RuntimeException('merge() expects a normalized config array.');
+                if (!$this->ignoreExtraKeys || $this->removeExtraKeys) {
+                    throw new \RuntimeException('merge() expects a normalized config array.');
+                }
+
+                $leftSide[$k] = $v;
+                continue;
             }
 
             $leftSide[$k] = $this->children[$k]->merge($leftSide[$k], $v);

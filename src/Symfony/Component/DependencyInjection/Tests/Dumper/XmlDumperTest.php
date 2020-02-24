@@ -13,6 +13,7 @@ namespace Symfony\Component\DependencyInjection\Tests\Dumper;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\AbstractArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -20,12 +21,13 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Dumper\XmlDumper;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\FooWithAbstractArgument;
 
 class XmlDumperTest extends TestCase
 {
     protected static $fixturesPath;
 
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         self::$fixturesPath = realpath(__DIR__.'/../Fixtures/');
     }
@@ -146,6 +148,16 @@ class XmlDumperTest extends TestCase
   </services>
 </container>
 ", include $fixturesPath.'/containers/container16.php'],
+            ["<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<container xmlns=\"http://symfony.com/schema/dic/services\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://symfony.com/schema/dic/services https://symfony.com/schema/dic/services/services-1.0.xsd\">
+  <services>
+    <service id=\"service_container\" class=\"Symfony\Component\DependencyInjection\ContainerInterface\" public=\"true\" synthetic=\"true\"/>
+    <service id=\"decorator\" decorates=\"decorated\" decoration-on-invalid=\"null\" decoration-inner-name=\"decorated.inner\" decoration-priority=\"1\"/>
+    <service id=\"Psr\Container\ContainerInterface\" alias=\"service_container\" public=\"false\"/>
+    <service id=\"Symfony\Component\DependencyInjection\ContainerInterface\" alias=\"service_container\" public=\"false\"/>
+  </services>
+</container>
+", include $fixturesPath.'/containers/container34.php'],
         ];
     }
 
@@ -204,7 +216,7 @@ class XmlDumperTest extends TestCase
 
     public function testTaggedArguments()
     {
-        $taggedIterator = new TaggedIteratorArgument('foo_tag', 'barfoo', 'foobar');
+        $taggedIterator = new TaggedIteratorArgument('foo_tag', 'barfoo', 'foobar', false, 'getPriority');
         $container = new ContainerBuilder();
         $container->register('foo', 'Foo')->addTag('foo_tag');
         $container->register('foo_tagged_iterator', 'Bar')
@@ -226,5 +238,16 @@ class XmlDumperTest extends TestCase
         $dumper = new XmlDumper($container);
 
         $this->assertEquals(file_get_contents(self::$fixturesPath.'/xml/services_abstract.xml'), $dumper->dump());
+    }
+
+    public function testDumpServiceWithAbstractArgument()
+    {
+        $container = new ContainerBuilder();
+        $container->register(FooWithAbstractArgument::class, FooWithAbstractArgument::class)
+            ->setArgument('$baz', new AbstractArgument(FooWithAbstractArgument::class, '$baz', 'should be defined by Pass'))
+            ->setArgument('$bar', 'test');
+
+        $dumper = new XmlDumper($container);
+        $this->assertStringEqualsFile(self::$fixturesPath.'/xml/services_with_abstract_argument.xml', $dumper->dump());
     }
 }

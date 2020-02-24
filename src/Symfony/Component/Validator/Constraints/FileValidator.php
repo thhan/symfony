@@ -42,7 +42,7 @@ class FileValidator extends ConstraintValidator
     public function validate($value, Constraint $constraint)
     {
         if (!$constraint instanceof File) {
-            throw new UnexpectedTypeException($constraint, __NAMESPACE__.'\File');
+            throw new UnexpectedTypeException($constraint, File::class);
         }
 
         if (null === $value || '' === $value) {
@@ -61,7 +61,7 @@ class FileValidator extends ConstraintValidator
                         $binaryFormat = null === $constraint->binaryFormat ? true : $constraint->binaryFormat;
                     }
 
-                    list($sizeAsString, $limitAsString, $suffix) = $this->factorizeSizes(0, $limitInBytes, $binaryFormat);
+                    list(, $limitAsString, $suffix) = $this->factorizeSizes(0, $limitInBytes, $binaryFormat);
                     $this->context->buildViolation($constraint->uploadIniSizeErrorMessage)
                         ->setParameter('{{ limit }}', $limitAsString)
                         ->setParameter('{{ suffix }}', $suffix)
@@ -199,16 +199,16 @@ class FileValidator extends ConstraintValidator
         }
     }
 
-    private static function moreDecimalsThan($double, $numberOfDecimals)
+    private static function moreDecimalsThan(string $double, int $numberOfDecimals): bool
     {
-        return \strlen((string) $double) > \strlen(round($double, $numberOfDecimals));
+        return \strlen($double) > \strlen(round($double, $numberOfDecimals));
     }
 
     /**
      * Convert the limit to the smallest possible number
      * (i.e. try "MB", then "kB", then "bytes").
      */
-    private function factorizeSizes($size, $limit, $binaryFormat)
+    private function factorizeSizes(int $size, int $limit, bool $binaryFormat): array
     {
         if ($binaryFormat) {
             $coef = self::MIB_BYTES;

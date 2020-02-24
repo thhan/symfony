@@ -26,7 +26,7 @@ class RemoveEmptyControllerArgumentLocatorsPassTest extends TestCase
         $resolver = $container->register('argument_resolver.service')->addArgument([]);
 
         $container->register('stdClass', 'stdClass');
-        $container->register(parent::class, 'stdClass');
+        $container->register(TestCase::class, 'stdClass');
         $container->register('c1', RemoveTestController1::class)->addTag('controller.service_arguments');
         $container->register('c2', RemoveTestController2::class)->addTag('controller.service_arguments')
             ->addMethodCall('setTestCase', [new Reference('c1')]);
@@ -49,7 +49,7 @@ class RemoveEmptyControllerArgumentLocatorsPassTest extends TestCase
 
         $controllers = $container->getDefinition((string) $resolver->getArgument(0))->getArgument(0);
 
-        $this->assertSame(['c1::fooAction', 'c1:fooAction'], array_keys($controllers));
+        $this->assertSame(['c1::fooAction'], array_keys($controllers));
         $this->assertSame(['bar'], array_keys($container->getDefinition((string) $controllers['c1::fooAction']->getValues()[0])->getArgument(0)));
 
         $expectedLog = [
@@ -73,7 +73,7 @@ class RemoveEmptyControllerArgumentLocatorsPassTest extends TestCase
         (new RemoveEmptyControllerArgumentLocatorsPass())->process($container);
 
         $this->assertEquals(
-            ['invokable::__invoke', 'invokable:__invoke', 'invokable'],
+            ['invokable::__invoke', 'invokable'],
             array_keys($container->getDefinition((string) $resolver->getArgument(0))->getArgument(0))
         );
     }

@@ -16,38 +16,35 @@ use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
 use Symfony\Component\Lock\Exception\InvalidArgumentException;
 use Symfony\Component\Lock\Exception\LockConflictedException;
-use Symfony\Component\Lock\Exception\NotSupportedException;
 use Symfony\Component\Lock\Key;
-use Symfony\Component\Lock\PersistStoreInterface;
-use Symfony\Component\Lock\StoreInterface;
+use Symfony\Component\Lock\PersistingStoreInterface;
 use Symfony\Component\Lock\Strategy\StrategyInterface;
 
 /**
- * CombinedStore is a StoreInterface implementation able to manage and synchronize several StoreInterfaces.
+ * CombinedStore is a PersistingStoreInterface implementation able to manage and synchronize several StoreInterfaces.
  *
  * @author Jérémy Derussé <jeremy@derusse.com>
  */
-class CombinedStore implements StoreInterface, LoggerAwareInterface
+class CombinedStore implements PersistingStoreInterface, LoggerAwareInterface
 {
     use LoggerAwareTrait;
     use ExpiringStoreTrait;
 
-    /** @var PersistStoreInterface[] */
+    /** @var PersistingStoreInterface[] */
     private $stores;
     /** @var StrategyInterface */
     private $strategy;
 
     /**
-     * @param PersistStoreInterface[] $stores   The list of synchronized stores
-     * @param StrategyInterface       $strategy
+     * @param PersistingStoreInterface[] $stores The list of synchronized stores
      *
      * @throws InvalidArgumentException
      */
     public function __construct(array $stores, StrategyInterface $strategy)
     {
         foreach ($stores as $store) {
-            if (!$store instanceof PersistStoreInterface) {
-                throw new InvalidArgumentException(sprintf('The store must implement "%s". Got "%s".', PersistStoreInterface::class, \get_class($store)));
+            if (!$store instanceof PersistingStoreInterface) {
+                throw new InvalidArgumentException(sprintf('The store must implement "%s". Got "%s".', PersistingStoreInterface::class, \get_class($store)));
             }
         }
 
@@ -96,16 +93,7 @@ class CombinedStore implements StoreInterface, LoggerAwareInterface
     /**
      * {@inheritdoc}
      */
-    public function waitAndSave(Key $key)
-    {
-        @trigger_error(sprintf('%s::%s has been deprecated since Symfony 4.4 and will be removed in Symfony 5.0.', \get_class($this), __METHOD__), E_USER_DEPRECATED);
-        throw new NotSupportedException(sprintf('The store "%s" does not supports blocking locks.', \get_class($this)));
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function putOffExpiration(Key $key, $ttl)
+    public function putOffExpiration(Key $key, float $ttl)
     {
         $successCount = 0;
         $failureCount = 0;
@@ -184,14 +172,6 @@ class CombinedStore implements StoreInterface, LoggerAwareInterface
             }
         }
 
-        return false;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function supportsWaitAndSave(): bool
-    {
         return false;
     }
 }

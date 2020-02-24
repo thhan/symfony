@@ -56,6 +56,13 @@ class Definition
      */
     public $innerServiceId;
 
+    /**
+     * @internal
+     *
+     * Used to store the behavior to follow when using service decoration and the decorated service is invalid
+     */
+    public $decorationOnInvalid;
+
     public function __construct(string $class = null, array $arguments = [])
     {
         if (null !== $class) {
@@ -125,13 +132,12 @@ class Definition
      *
      * @param string|null $id        The decorated service id, use null to remove decoration
      * @param string|null $renamedId The new decorated service id
-     * @param int         $priority  The priority of decoration
      *
      * @return $this
      *
      * @throws InvalidArgumentException in case the decorated service id and the new decorated service id are equals
      */
-    public function setDecoratedService(?string $id, ?string $renamedId = null, int $priority = 0)
+    public function setDecoratedService(?string $id, ?string $renamedId = null, int $priority = 0, int $invalidBehavior = ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE)
     {
         if ($renamedId && $id === $renamedId) {
             throw new InvalidArgumentException(sprintf('The decorated service inner name for "%s" must be different than the service name itself.', $id));
@@ -143,6 +149,10 @@ class Definition
             $this->decoratedService = null;
         } else {
             $this->decoratedService = [$id, $renamedId, (int) $priority];
+
+            if (ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $invalidBehavior) {
+                $this->decoratedService[] = $invalidBehavior;
+            }
         }
 
         return $this;
@@ -347,7 +357,7 @@ class Definition
         if (empty($method)) {
             throw new InvalidArgumentException('Method name cannot be empty.');
         }
-        $this->calls[] = 2 < \func_num_args() && func_get_arg(2) ? [$method, $arguments, true] : [$method, $arguments];
+        $this->calls[] = $returnsClone ? [$method, $arguments, true] : [$method, $arguments];
 
         return $this;
     }
@@ -421,8 +431,6 @@ class Definition
 
     /**
      * Sets whether or not instanceof conditionals should be prepended with a global set.
-     *
-     * @param bool $autoconfigured
      *
      * @return $this
      */
@@ -772,7 +780,7 @@ class Definition
     /**
      * Gets the configurator to call after the service is fully initialized.
      *
-     * @return callable|null The PHP callable to call
+     * @return callable|array|null
      */
     public function getConfigurator()
     {
@@ -819,8 +827,6 @@ class Definition
      * Bindings map $named or FQCN arguments to values that should be
      * injected in the matching parameters (of the constructor, of methods
      * called and of controller actions).
-     *
-     * @param array $bindings
      *
      * @return $this
      */

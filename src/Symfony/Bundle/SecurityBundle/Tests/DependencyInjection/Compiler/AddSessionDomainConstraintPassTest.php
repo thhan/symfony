@@ -125,7 +125,6 @@ class AddSessionDomainConstraintPassTest extends TestCase
         $container->setParameter('kernel.container_class', 'cc');
         $container->setParameter('kernel.debug', true);
         $container->setParameter('kernel.project_dir', __DIR__);
-        $container->setParameter('kernel.root_dir', __DIR__);
         $container->setParameter('kernel.secret', __DIR__);
         if (null !== $sessionStorageOptions) {
             $container->setParameter('session.storage.options', $sessionStorageOptions);
@@ -141,7 +140,7 @@ class AddSessionDomainConstraintPassTest extends TestCase
         ];
 
         $ext = new FrameworkExtension();
-        $ext->load(['framework' => ['csrf_protection' => false, 'router' => ['resource' => 'dummy']]], $container);
+        $ext->load(['framework' => ['csrf_protection' => false, 'router' => ['resource' => 'dummy', 'utf8' => true]]], $container);
 
         $ext = new SecurityExtension();
         $ext->load($config, $container);

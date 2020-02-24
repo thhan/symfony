@@ -11,6 +11,9 @@
 
 namespace Symfony\Component\DependencyInjection\Dumper;
 
+use Composer\Autoload\ClassLoader;
+use Symfony\Component\Debug\DebugClassLoader as LegacyDebugClassLoader;
+use Symfony\Component\DependencyInjection\Argument\AbstractArgument;
 use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
@@ -32,11 +35,13 @@ use Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceExce
 use Symfony\Component\DependencyInjection\ExpressionLanguage;
 use Symfony\Component\DependencyInjection\LazyProxy\PhpDumper\DumperInterface as ProxyDumper;
 use Symfony\Component\DependencyInjection\LazyProxy\PhpDumper\NullDumper;
+use Symfony\Component\DependencyInjection\Loader\FileLoader;
 use Symfony\Component\DependencyInjection\Parameter;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ServiceLocator as BaseServiceLocator;
 use Symfony\Component\DependencyInjection\TypedReference;
 use Symfony\Component\DependencyInjection\Variable;
+use Symfony\Component\ErrorHandler\DebugClassLoader;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -73,6 +78,7 @@ class PhpDumper extends Dumper
     private $namespace;
     private $asFiles;
     private $hotPathTag;
+    private $inlineFactories;
     private $inlineRequires;
     private $inlinedRequires = [];
     private $circularReferences = [];
@@ -82,6 +88,7 @@ class PhpDumper extends Dumper
     private $locatedIds = [];
     private $serviceLocatorTag;
     private $exportedVariables = [];
+    private $baseClass;
 
     /**
      * @var ProxyDumper
@@ -135,6 +142,7 @@ class PhpDumper extends Dumper
             'as_files' => false,
             'debug' => true,
             'hot_path_tag' => 'container.hot_path',
+            'inline_factories_parameter' => 'container.dumper.inline_factories',
             'inline_class_loader_parameter' => 'container.dumper.inline_class_loader',
             'service_locator_tag' => 'container.service_locator',
             'build_time' => time(),
@@ -144,16 +152,17 @@ class PhpDumper extends Dumper
         $this->namespace = $options['namespace'];
         $this->asFiles = $options['as_files'];
         $this->hotPathTag = $options['hot_path_tag'];
-        $this->inlineRequires = $options['inline_class_loader_parameter'] && $this->container->hasParameter($options['inline_class_loader_parameter']) && $this->container->getParameter($options['inline_class_loader_parameter']);
+        $this->inlineFactories = $this->asFiles && $options['inline_factories_parameter'] && (!$this->container->hasParameter($options['inline_factories_parameter']) || $this->container->getParameter($options['inline_factories_parameter']));
+        $this->inlineRequires = $options['inline_class_loader_parameter'] && ($this->container->hasParameter($options['inline_class_loader_parameter']) ? $this->container->getParameter($options['inline_class_loader_parameter']) : (\PHP_VERSION_ID < 70400 || $options['debug']));
         $this->serviceLocatorTag = $options['service_locator_tag'];
 
         if (0 !== strpos($baseClass = $options['base_class'], '\\') && 'Container' !== $baseClass) {
             $baseClass = sprintf('%s\%s', $options['namespace'] ? '\\'.$options['namespace'] : '', $baseClass);
-            $baseClassWithNamespace = $baseClass;
+            $this->baseClass = $baseClass;
         } elseif ('Container' === $baseClass) {
-            $baseClassWithNamespace = Container::class;
+            $this->baseClass = Container::class;
         } else {
-            $baseClassWithNamespace = $baseClass;
+            $this->baseClass = $baseClass;
         }
 
         $this->initializeMethodNamesMap('Container' === $baseClass ? Container::class : $baseClass);
@@ -188,20 +197,21 @@ class PhpDumper extends Dumper
         }
         $this->container->getCompiler()->getServiceReferenceGraph()->clear();
         $checkedNodes = [];
+        $this->singleUsePrivateIds = array_diff_key($this->singleUsePrivateIds, $this->circularReferences);
 
         $this->docStar = $options['debug'] ? '*' : '';
 
         if (!empty($options['file']) && is_dir($dir = \dirname($options['file']))) {
             // Build a regexp where the first root dirs are mandatory,
             // but every other sub-dir is optional up to the full path in $dir
-            // Mandate at least 2 root dirs and not more that 5 optional dirs.
+            // Mandate at least 1 root dir and not more than 5 optional dirs.
 
             $dir = explode(\DIRECTORY_SEPARATOR, realpath($dir));
             $i = \count($dir);
 
-            if (3 <= $i) {
+            if (2 + (int) ('\\' === \DIRECTORY_SEPARATOR) <= $i) {
                 $regex = '';
-                $lastOptionalDir = $i > 8 ? $i - 5 : 3;
+                $lastOptionalDir = $i > 8 ? $i - 5 : (2 + (int) ('\\' === \DIRECTORY_SEPARATOR));
                 $this->targetDirMaxMatches = $i - $lastOptionalDir;
 
                 while (--$i >= $lastOptionalDir) {
@@ -216,12 +226,16 @@ class PhpDumper extends Dumper
             }
         }
 
+        $proxyClasses = $this->inlineFactories ? $this->generateProxyClasses() : null;
+
         $code =
-            $this->startClass($options['class'], $baseClass, $baseClassWithNamespace).
+            $this->startClass($options['class'], $baseClass, $preload).
             $this->addServices($services).
             $this->addDeprecatedAliases().
             $this->addDefaultParametersMethod()
         ;
+
+        $proxyClasses = $proxyClasses ?? $this->generateProxyClasses();
 
         if ($this->addGetService) {
             $code = preg_replace(
@@ -256,16 +270,27 @@ EOF;
                 foreach ($ids as $id) {
                     $c .= '    '.$this->doExport($id)." => true,\n";
                 }
-                $files['removed-ids.php'] = $c .= "];\n";
+                $files['removed-ids.php'] = $c."];\n";
             }
 
-            foreach ($this->generateServiceFiles($services) as $file => $c) {
-                $files[$file] = $fileStart.$c;
+            if (!$this->inlineFactories) {
+                foreach ($this->generateServiceFiles($services) as $file => $c) {
+                    $files[$file] = $fileStart.$c;
+                }
+                foreach ($proxyClasses as $file => $c) {
+                    $files[$file] = "<?php\n".$c;
+                }
             }
-            foreach ($this->generateProxyClasses() as $file => $c) {
-                $files[$file] = "<?php\n".$c;
+
+            $code .= $this->endClass();
+
+            if ($this->inlineFactories) {
+                foreach ($proxyClasses as $c) {
+                    $code .= $c;
+                }
             }
-            $files[$options['class'].'.php'] = $code.$this->endClass();
+
+            $files[$options['class'].'.php'] = $code;
             $hash = ucfirst(strtr(ContainerBuilder::hash($files), '._', 'xx'));
             $code = [];
 
@@ -277,6 +302,36 @@ EOF;
             $namespaceLine = $this->namespace ? "\nnamespace {$this->namespace};\n" : '';
             $time = $options['build_time'];
             $id = hash('crc32', $hash.$time);
+            $this->asFiles = false;
+
+            if ($preload && null !== $autoloadFile = $this->getAutoloadFile()) {
+                $autoloadFile = substr($this->export($autoloadFile), 2, -1);
+
+                $code[$options['class'].'.preload.php'] = <<<EOF
+<?php
+
+// This file has been auto-generated by the Symfony Dependency Injection Component
+// You can reference it in the "opcache.preload" php.ini setting on PHP >= 7.4 when preloading is desired
+
+use Symfony\Component\DependencyInjection\Dumper\Preloader;
+
+require $autoloadFile;
+require __DIR__.'/Container{$hash}/{$options['class']}.php';
+
+\$classes = [];
+
+EOF;
+
+                foreach ($preload as $class) {
+                    $code[$options['class'].'.preload.php'] .= sprintf("\$classes[] = '%s';\n", $class);
+                }
+
+                $code[$options['class'].'.preload.php'] .= <<<'EOF'
+
+Preloader::preload($classes);
+
+EOF;
+            }
 
             $code[$options['class'].'.php'] = <<<EOF
 <?php
@@ -304,7 +359,7 @@ return new \\Container{$hash}\\{$options['class']}([
 EOF;
         } else {
             $code .= $this->endClass();
-            foreach ($this->generateProxyClasses() as $c) {
+            foreach ($proxyClasses as $c) {
                 $code .= $c;
             }
         }
@@ -343,10 +398,10 @@ EOF;
     /**
      * @param ServiceReferenceGraphEdge[] $edges
      */
-    private function analyzeCircularReferences(string $sourceId, array $edges, array &$checkedNodes, array &$currentPath = [])
+    private function analyzeCircularReferences(string $sourceId, array $edges, array &$checkedNodes, array &$currentPath = [], bool $byConstructor = true)
     {
         $checkedNodes[$sourceId] = true;
-        $currentPath[$sourceId] = $sourceId;
+        $currentPath[$sourceId] = $byConstructor;
 
         foreach ($edges as $edge) {
             $node = $edge->getDestNode();
@@ -355,44 +410,52 @@ EOF;
             if (!$node->getValue() instanceof Definition || $sourceId === $id || $edge->isLazy() || $edge->isWeak()) {
                 // no-op
             } elseif (isset($currentPath[$id])) {
-                $currentId = $id;
-                foreach (array_reverse($currentPath) as $parentId) {
-                    $this->circularReferences[$parentId][$currentId] = $currentId;
-                    if ($parentId === $id) {
-                        break;
-                    }
-                    $currentId = $parentId;
-                }
+                $this->addCircularReferences($id, $currentPath, $edge->isReferencedByConstructor());
             } elseif (!isset($checkedNodes[$id])) {
-                $this->analyzeCircularReferences($id, $node->getOutEdges(), $checkedNodes, $currentPath);
+                $this->analyzeCircularReferences($id, $node->getOutEdges(), $checkedNodes, $currentPath, $edge->isReferencedByConstructor());
             } elseif (isset($this->circularReferences[$id])) {
-                $this->connectCircularReferences($id, $currentPath);
+                $this->connectCircularReferences($id, $currentPath, $edge->isReferencedByConstructor());
             }
         }
         unset($currentPath[$sourceId]);
     }
 
-    private function connectCircularReferences(string $sourceId, array &$currentPath, array &$subPath = [])
+    private function connectCircularReferences(string $sourceId, array &$currentPath, bool $byConstructor, array &$subPath = [])
     {
-        $subPath[$sourceId] = $sourceId;
-        $currentPath[$sourceId] = $sourceId;
+        $currentPath[$sourceId] = $subPath[$sourceId] = $byConstructor;
 
-        foreach ($this->circularReferences[$sourceId] as $id) {
+        foreach ($this->circularReferences[$sourceId] as $id => $byConstructor) {
             if (isset($currentPath[$id])) {
-                $currentId = $id;
-                foreach (array_reverse($currentPath) as $parentId) {
-                    $this->circularReferences[$parentId][$currentId] = $currentId;
-                    if ($parentId === $id) {
-                        break;
-                    }
-                    $currentId = $parentId;
-                }
+                $this->addCircularReferences($id, $currentPath, $byConstructor);
             } elseif (!isset($subPath[$id]) && isset($this->circularReferences[$id])) {
-                $this->connectCircularReferences($id, $currentPath, $subPath);
+                $this->connectCircularReferences($id, $currentPath, $byConstructor, $subPath);
             }
         }
-        unset($currentPath[$sourceId]);
-        unset($subPath[$sourceId]);
+        unset($currentPath[$sourceId], $subPath[$sourceId]);
+    }
+
+    private function addCircularReferences(string $id, array $currentPath, bool $byConstructor)
+    {
+        $currentPath[$id] = $byConstructor;
+        $circularRefs = [];
+
+        foreach (array_reverse($currentPath) as $parentId => $v) {
+            $byConstructor = $byConstructor && $v;
+            $circularRefs[] = $parentId;
+
+            if ($parentId === $id) {
+                break;
+            }
+        }
+
+        $currentId = $id;
+        foreach ($circularRefs as $parentId) {
+            if (empty($this->circularReferences[$parentId][$currentId])) {
+                $this->circularReferences[$parentId][$currentId] = $byConstructor;
+            }
+
+            $currentId = $parentId;
+        }
     }
 
     private function collectLineage(string $class, array &$lineage)
@@ -403,13 +466,15 @@ EOF;
         if (!$r = $this->container->getReflectionClass($class, false)) {
             return;
         }
-        if ($this->container instanceof $class) {
+        if (is_a($class, $this->baseClass, true)) {
             return;
         }
         $file = $r->getFileName();
         if (!$file || $this->doExport($file) === $exportedFile = $this->export($file)) {
             return;
         }
+
+        $lineage[$class] = substr($exportedFile, 1, -1);
 
         if ($parent = $r->getParentClass()) {
             $this->collectLineage($parent->name, $lineage);
@@ -423,11 +488,13 @@ EOF;
             $this->collectLineage($parent->name, $lineage);
         }
 
+        unset($lineage[$class]);
         $lineage[$class] = substr($exportedFile, 1, -1);
     }
 
-    private function generateProxyClasses()
+    private function generateProxyClasses(): array
     {
+        $proxyClasses = [];
         $alreadyGenerated = [];
         $definitions = $this->container->getDefinitions();
         $strip = '' === $this->docStar && method_exists('Symfony\Component\HttpKernel\Kernel', 'stripComments');
@@ -446,19 +513,38 @@ EOF;
             if ("\n" === $proxyCode = "\n".$proxyDumper->getProxyCode($definition)) {
                 continue;
             }
+
+            if ($this->inlineRequires) {
+                $lineage = [];
+                $this->collectLineage($class, $lineage);
+
+                $code = '';
+                foreach (array_diff_key(array_flip($lineage), $this->inlinedRequires) as $file => $class) {
+                    if ($this->inlineFactories) {
+                        $this->inlinedRequires[$file] = true;
+                    }
+                    $code .= sprintf("include_once %s;\n", $file);
+                }
+
+                $proxyCode = $code.$proxyCode;
+            }
+
             if ($strip) {
                 $proxyCode = "<?php\n".$proxyCode;
                 $proxyCode = substr(Kernel::stripComments($proxyCode), 5);
             }
-            yield sprintf('%s.php', explode(' ', $proxyCode, 3)[1]) => $proxyCode;
+
+            $proxyClasses[sprintf('%s.php', explode(' ', $this->inlineRequires ? substr($proxyCode, \strlen($code)) : $proxyCode, 3)[1])] = $proxyCode;
         }
+
+        return $proxyClasses;
     }
 
     private function addServiceInclude(string $cId, Definition $definition): string
     {
         $code = '';
 
-        if ($this->inlineRequires && !$this->isHotPath($definition)) {
+        if ($this->inlineRequires && (!$this->isHotPath($definition) || $this->getProxyDumper()->isProxyCandidate($definition))) {
             $lineage = [];
             foreach ($this->inlinedDefinitions as $def) {
                 if (!$def->isDeprecated() && \is_string($class = \is_array($factory = $def->getFactory()) && \is_string($factory[0]) ? $factory[0] : $def->getClass())) {
@@ -484,7 +570,9 @@ EOF;
 
         foreach ($this->inlinedDefinitions as $def) {
             if ($file = $def->getFile()) {
-                $code .= sprintf("        include_once %s;\n", $this->dumpValue($file));
+                $file = $this->dumpValue($file);
+                $file = '(' === $file[0] ? substr($file, 1, -1) : $file;
+                $code .= sprintf("        include_once %s;\n", $file);
             }
         }
 
@@ -605,7 +693,7 @@ EOF;
         return $calls;
     }
 
-    private function addServiceProperties(Definition $definition, string $variableName = 'instance')
+    private function addServiceProperties(Definition $definition, string $variableName = 'instance'): string
     {
         $code = '';
         foreach ($definition->getProperties() as $name => $value) {
@@ -683,13 +771,12 @@ EOF;
         $autowired = $definition->isAutowired() ? ' autowired' : '';
 
         if ($definition->isLazy()) {
-            unset($this->circularReferences[$id]);
             $lazyInitialization = '$lazyLoad = true';
         } else {
             $lazyInitialization = '';
         }
 
-        $asFile = $this->asFiles && !$this->isHotPath($definition);
+        $asFile = $this->asFiles && !$this->inlineFactories && !$this->isHotPath($definition);
         $methodName = $this->generateMethodName($id);
         if ($asFile) {
             $file = $methodName.'.php';
@@ -715,17 +802,16 @@ EOF;
         $this->serviceCalls = [];
         $this->inlinedDefinitions = $this->getDefinitionsFromArguments([$definition], null, $this->serviceCalls);
 
-        $code .= $this->addServiceInclude($id, $definition);
+        if ($definition->isDeprecated()) {
+            $code .= sprintf("        trigger_deprecation('', '', %s);\n\n", $this->export($definition->getDeprecationMessage($id)));
+        }
 
         if ($this->getProxyDumper()->isProxyCandidate($definition)) {
             $factoryCode = $asFile ? ($definition->isShared() ? "\$this->load('%s.php', false)" : '$this->factories[%2$s](false)') : '$this->%s(false)';
             $code .= $this->getProxyDumper()->getProxyFactoryCode($definition, $id, sprintf($factoryCode, $methodName, $this->doExport($id)));
         }
 
-        if ($definition->isDeprecated()) {
-            $code .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", $this->export($definition->getDeprecationMessage($id)));
-        }
-
+        $code .= $this->addServiceInclude($id, $definition);
         $code .= $this->addInlineService($id, $definition);
 
         if ($asFile) {
@@ -759,11 +845,11 @@ EOF;
 
     private function addInlineReference(string $id, Definition $definition, string $targetId, bool $forConstructor): string
     {
-        list($callCount, $behavior) = $this->serviceCalls[$targetId];
-
         while ($this->container->hasAlias($targetId)) {
             $targetId = (string) $this->container->getAlias($targetId);
         }
+
+        list($callCount, $behavior) = $this->serviceCalls[$targetId];
 
         if ($id === $targetId) {
             return $this->addInlineService($id, $definition, $definition);
@@ -773,9 +859,13 @@ EOF;
             return '';
         }
 
-        $hasSelfRef = isset($this->circularReferences[$id][$targetId]);
-        $forConstructor = $forConstructor && !isset($this->definitionVariables[$definition]);
-        $code = $hasSelfRef && !$forConstructor ? $this->addInlineService($id, $definition, $definition) : '';
+        $hasSelfRef = isset($this->circularReferences[$id][$targetId]) && !isset($this->definitionVariables[$definition]);
+
+        if ($hasSelfRef && !$forConstructor && !$forConstructor = !$this->circularReferences[$id][$targetId]) {
+            $code = $this->addInlineService($id, $definition, $definition);
+        } else {
+            $code = '';
+        }
 
         if (isset($this->referenceVariables[$targetId]) || (2 > $callCount && (!$hasSelfRef || !$forConstructor))) {
             return $code;
@@ -808,15 +898,23 @@ EOTXT
 
     private function addInlineService(string $id, Definition $definition, Definition $inlineDef = null, bool $forConstructor = true): string
     {
-        $isSimpleInstance = $isRootInstance = null === $inlineDef;
+        $code = '';
+
+        if ($isSimpleInstance = $isRootInstance = null === $inlineDef) {
+            foreach ($this->serviceCalls as $targetId => list($callCount, $behavior, $byConstructor)) {
+                if ($byConstructor && isset($this->circularReferences[$id][$targetId]) && !$this->circularReferences[$id][$targetId]) {
+                    $code .= $this->addInlineReference($id, $definition, $targetId, $forConstructor);
+                }
+            }
+        }
 
         if (isset($this->definitionVariables[$inlineDef = $inlineDef ?: $definition])) {
-            return '';
+            return $code;
         }
 
         $arguments = [$inlineDef->getArguments(), $inlineDef->getFactory()];
 
-        $code = $this->addInlineVariables($id, $definition, $arguments, $forConstructor);
+        $code .= $this->addInlineVariables($id, $definition, $arguments, $forConstructor);
 
         if ($arguments = array_filter([$inlineDef->getProperties(), $inlineDef->getMethodCalls(), $inlineDef->getConfigurator()])) {
             $isSimpleInstance = false;
@@ -878,7 +976,7 @@ EOTXT
         return $publicServices.$privateServices;
     }
 
-    private function generateServiceFiles(array $services)
+    private function generateServiceFiles(array $services): iterable
     {
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
@@ -904,7 +1002,7 @@ EOTXT
         }
     }
 
-    private function addNewInstance(Definition $definition, string $return = '', string $id = null)
+    private function addNewInstance(Definition $definition, string $return = '', string $id = null): string
     {
         $tail = $return ? ";\n" : '';
 
@@ -962,7 +1060,7 @@ EOTXT
         return $return.sprintf('new %s(%s)', $this->dumpLiteralClass($this->dumpValue($class)), implode(', ', $arguments)).$tail;
     }
 
-    private function startClass(string $class, string $baseClass, string $baseClassWithNamespace): string
+    private function startClass(string $class, string $baseClass, ?array &$preload): string
     {
         $namespaceLine = !$this->asFiles && $this->namespace ? "\nnamespace {$this->namespace};\n" : '';
 
@@ -976,6 +1074,7 @@ use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 /*{$this->docStar}
  * This class has been auto-generated
@@ -985,32 +1084,26 @@ use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
  */
 class $class extends $baseClass
 {
-    private \$parameters;
-    private \$targetDirs = [];
+    private \$parameters = [];
 
     public function __construct()
     {
 
 EOF;
-        if (null !== $this->targetDirRegex) {
-            $dir = $this->asFiles ? '$this->targetDirs[0] = \\dirname($containerDir)' : '__DIR__';
-            $code .= <<<EOF
-        \$dir = {$dir};
-        for (\$i = 1; \$i <= {$this->targetDirMaxMatches}; ++\$i) {
-            \$this->targetDirs[\$i] = \$dir = \\dirname(\$dir);
-        }
-
-EOF;
-        }
         if ($this->asFiles) {
             $code = str_replace('$parameters', "\$buildParameters;\n    private \$containerDir;\n    private \$parameters", $code);
             $code = str_replace('__construct()', '__construct(array $buildParameters = [], $containerDir = __DIR__)', $code);
             $code .= "        \$this->buildParameters = \$buildParameters;\n";
             $code .= "        \$this->containerDir = \$containerDir;\n";
+
+            if (null !== $this->targetDirRegex) {
+                $code = str_replace('$parameters', "\$targetDir;\n    private \$parameters", $code);
+                $code .= '        $this->targetDir = \\dirname($containerDir);'."\n";
+            }
         }
 
-        if (Container::class !== $baseClassWithNamespace) {
-            $r = $this->container->getReflectionClass($baseClassWithNamespace, false);
+        if (Container::class !== $this->baseClass) {
+            $r = $this->container->getReflectionClass($this->baseClass, false);
             if (null !== $r
                 && (null !== $constructor = $r->getConstructor())
                 && 0 === $constructor->getNumberOfRequiredParameters()
@@ -1028,18 +1121,18 @@ EOF;
 
         $code .= $this->addSyntheticIds();
         $code .= $this->addMethodMap();
-        $code .= $this->asFiles ? $this->addFileMap() : '';
+        $code .= $this->asFiles && !$this->inlineFactories ? $this->addFileMap() : '';
         $code .= $this->addAliases();
-        $code .= $this->addInlineRequires();
+        $code .= $this->addInlineRequires($preload);
         $code .= <<<EOF
     }
 
-    public function compile()
+    public function compile(): void
     {
         throw new LogicException('You cannot compile a dumped container that was already compiled.');
     }
 
-    public function isCompiled()
+    public function isCompiled(): bool
     {
         return true;
     }
@@ -1047,7 +1140,7 @@ EOF;
 EOF;
         $code .= $this->addRemovedIds();
 
-        if ($this->asFiles) {
+        if ($this->asFiles && !$this->inlineFactories) {
             $code .= <<<EOF
 
     protected function load(\$file, \$lazyLoad = true)
@@ -1063,10 +1156,10 @@ EOF;
             if (!$proxyDumper->isProxyCandidate($definition)) {
                 continue;
             }
-            if ($this->asFiles) {
+            if ($this->asFiles && !$this->inlineFactories) {
                 $proxyLoader = '$this->load("{$class}.php")';
-            } elseif ($this->namespace) {
-                $proxyLoader = 'class_alias("'.$this->namespace.'\\\\{$class}", $class, false)';
+            } elseif ($this->namespace || $this->inlineFactories) {
+                $proxyLoader = 'class_alias(__NAMESPACE__."\\\\$class", $class, false)';
             } else {
                 $proxyLoader = '';
             }
@@ -1119,7 +1212,7 @@ EOF;
             $ids = array_keys($ids);
             sort($ids);
             foreach ($ids as $id) {
-                if (preg_match('/^\.\d+_[^~]++~[._a-zA-Z\d]{7}$/', $id)) {
+                if (preg_match(FileLoader::ANONYMOUS_ID_REGEXP, $id)) {
                     continue;
                 }
                 $code .= '            '.$this->doExport($id)." => true,\n";
@@ -1130,7 +1223,7 @@ EOF;
 
         return <<<EOF
 
-    public function getRemovedIds()
+    public function getRemovedIds(): array
     {
         return {$code};
     }
@@ -1144,7 +1237,7 @@ EOF;
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
         foreach ($definitions as $id => $definition) {
-            if (!$definition->isSynthetic() && $definition->isPublic() && (!$this->asFiles || $this->isHotPath($definition))) {
+            if (!$definition->isSynthetic() && $definition->isPublic() && (!$this->asFiles || $this->inlineFactories || $this->isHotPath($definition))) {
                 $code .= '            '.$this->doExport($id).' => '.$this->doExport($this->generateMethodName($id)).",\n";
             }
         }
@@ -1154,7 +1247,6 @@ EOF;
             if (!$id->isDeprecated()) {
                 continue;
             }
-            $id = (string) $id;
             $code .= '            '.$this->doExport($alias).' => '.$this->doExport($this->generateMethodName($alias)).",\n";
         }
 
@@ -1211,7 +1303,7 @@ EOF;
             $methodNameAlias = $this->generateMethodName($alias);
             $idExported = $this->export($id);
             $messageExported = $this->export($definition->getDeprecationMessage($alias));
-            $code = <<<EOF
+            $code .= <<<EOF
 
     /*{$this->docStar}
      * Gets the $public '$alias' alias.
@@ -1220,7 +1312,7 @@ EOF;
      */
     protected function {$methodNameAlias}()
     {
-        @trigger_error($messageExported, E_USER_DEPRECATED);
+        trigger_deprecation('', '', $messageExported);
 
         return \$this->get($idExported);
     }
@@ -1231,7 +1323,7 @@ EOF;
         return $code;
     }
 
-    private function addInlineRequires(): string
+    private function addInlineRequires(?array &$preload): string
     {
         if (!$this->hotPathTag || !$this->inlineRequires) {
             return '';
@@ -1241,10 +1333,16 @@ EOF;
 
         foreach ($this->container->findTaggedServiceIds($this->hotPathTag) as $id => $tags) {
             $definition = $this->container->getDefinition($id);
+
+            if ($this->getProxyDumper()->isProxyCandidate($definition)) {
+                continue;
+            }
+
             $inlinedDefinitions = $this->getDefinitionsFromArguments([$definition]);
 
             foreach ($inlinedDefinitions as $def) {
                 if (\is_string($class = \is_array($factory = $def->getFactory()) && \is_string($factory[0]) ? $factory[0] : $def->getClass())) {
+                    $preload[$class] = $class;
                     $this->collectLineage($class, $lineage);
                 }
             }
@@ -1278,7 +1376,7 @@ EOF;
             $export = $this->exportParameters([$value]);
             $export = explode('0 => ', substr(rtrim($export, " ]\n"), 2, -1), 2);
 
-            if (preg_match("/\\\$this->(?:getEnv\('(?:\w++:)*+\w++'\)|targetDirs\[\d++\])/", $export[1])) {
+            if (preg_match("/\\\$this->(?:getEnv\('(?:\w++:)*+\w++'\)|targetDir\.'')/", $export[1])) {
                 $dynamicPhp[$key] = sprintf('%scase %s: $value = %s; break;', $export[0], $this->export($key), $export[1]);
             } else {
                 $php[] = sprintf('%s%s => %s,', $export[0], $this->export($key), $export[1]);
@@ -1294,7 +1392,7 @@ EOF;
             return $this->buildParameters[$name];
         }
 
-        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
+        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || \array_key_exists($name, $this->parameters))) {
             throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
         }
         if (isset($this->loadedDynamicParameters[$name])) {
@@ -1304,21 +1402,21 @@ EOF;
         return $this->parameters[$name];
     }
 
-    public function hasParameter(string $name)
+    public function hasParameter(string $name): bool
     {
         if (isset($this->buildParameters[$name])) {
             return true;
         }
 
-        return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
+        return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || \array_key_exists($name, $this->parameters);
     }
 
-    public function setParameter(string $name, $value)
+    public function setParameter(string $name, $value): void
     {
         throw new LogicException('Impossible to call set() on a frozen ParameterBag.');
     }
 
-    public function getParameterBag()
+    public function getParameterBag(): ParameterBagInterface
     {
         if (null === $this->parameterBag) {
             $parameters = $this->parameters;
@@ -1361,26 +1459,12 @@ EOF;
     private \$loadedDynamicParameters = {$loadedDynamicParameters};
     private \$dynamicParameters = [];
 
-    /*{$this->docStar}
-     * Computes a dynamic parameter.
-     *
-     * @param string \$name The name of the dynamic parameter to load
-     *
-     * @return mixed The value of the dynamic parameter
-     *
-     * @throws InvalidArgumentException When the dynamic parameter does not exist
-     */
-    private function getDynamicParameter(\$name)
+    private function getDynamicParameter(string \$name)
     {
 {$getDynamicParameter}
     }
 
-    /*{$this->docStar}
-     * Gets the default parameters.
-     *
-     * @return array An array of the default parameters
-     */
-    protected function getDefaultParameters()
+    protected function getDefaultParameters(): array
     {
         return $parameters;
     }
@@ -1475,7 +1559,7 @@ EOF;
         return implode(' && ', $conditions);
     }
 
-    private function getDefinitionsFromArguments(array $arguments, \SplObjectStorage $definitions = null, array &$calls = []): \SplObjectStorage
+    private function getDefinitionsFromArguments(array $arguments, \SplObjectStorage $definitions = null, array &$calls = [], bool $byConstructor = null): \SplObjectStorage
     {
         if (null === $definitions) {
             $definitions = new \SplObjectStorage();
@@ -1483,12 +1567,16 @@ EOF;
 
         foreach ($arguments as $argument) {
             if (\is_array($argument)) {
-                $this->getDefinitionsFromArguments($argument, $definitions, $calls);
+                $this->getDefinitionsFromArguments($argument, $definitions, $calls, $byConstructor);
             } elseif ($argument instanceof Reference) {
                 $id = (string) $argument;
 
+                while ($this->container->hasAlias($id)) {
+                    $id = (string) $this->container->getAlias($id);
+                }
+
                 if (!isset($calls[$id])) {
-                    $calls[$id] = [0, $argument->getInvalidBehavior()];
+                    $calls[$id] = [0, $argument->getInvalidBehavior(), $byConstructor];
                 } else {
                     $calls[$id][1] = min($calls[$id][1], $argument->getInvalidBehavior());
                 }
@@ -1500,8 +1588,10 @@ EOF;
                 $definitions[$argument] = 1 + $definitions[$argument];
             } else {
                 $definitions[$argument] = 1;
-                $arguments = [$argument->getArguments(), $argument->getFactory(), $argument->getProperties(), $argument->getMethodCalls(), $argument->getConfigurator()];
-                $this->getDefinitionsFromArguments($arguments, $definitions, $calls);
+                $arguments = [$argument->getArguments(), $argument->getFactory()];
+                $this->getDefinitionsFromArguments($arguments, $definitions, $calls, null === $byConstructor || $byConstructor);
+                $arguments = [$argument->getProperties(), $argument->getMethodCalls(), $argument->getConfigurator()];
+                $this->getDefinitionsFromArguments($arguments, $definitions, $calls, null !== $byConstructor && $byConstructor);
             }
         }
 
@@ -1580,7 +1670,7 @@ EOF;
                             continue;
                         }
                         $definition = $this->container->findDefinition($id = (string) $v);
-                        $load = !($definition->hasErrors() && $e = $definition->getErrors()) ? $this->asFiles && !$this->isHotPath($definition) : reset($e);
+                        $load = !($definition->hasErrors() && $e = $definition->getErrors()) ? $this->asFiles && !$this->inlineFactories && !$this->isHotPath($definition) : reset($e);
                         $serviceMap .= sprintf("\n            %s => [%s, %s, %s, %s],",
                             $this->export($k),
                             $this->export($definition->isShared() ? ($definition->isPublic() ? 'services' : 'privates') : false),
@@ -1622,6 +1712,11 @@ EOF;
             return '$'.$value;
         } elseif ($value instanceof Reference) {
             $id = (string) $value;
+
+            while ($this->container->hasAlias($id)) {
+                $id = (string) $this->container->getAlias($id);
+            }
+
             if (null !== $this->referenceVariables && isset($this->referenceVariables[$id])) {
                 return $this->dumpValue($this->referenceVariables[$id], $interpolate);
             }
@@ -1645,6 +1740,8 @@ EOF;
 
                 return $code;
             }
+        } elseif ($value instanceof AbstractArgument) {
+            throw new RuntimeException(sprintf('Argument "%s" of service "%s" is abstract%s, did you forget to define it?', $value->getArgumentKey(), $value->getServiceId(), $value->getText() ? ' ('.$value->getText().')' : ''));
         } elseif (\is_object($value) || \is_resource($value)) {
             throw new RuntimeException('Unable to dump a service container if a parameter is an object or a resource.');
         }
@@ -1681,7 +1778,7 @@ EOF;
                 return $dumpedValue;
             }
 
-            if (!preg_match("/\\\$this->(?:getEnv\('(?:\w++:)*+\w++'\)|targetDirs\[\d++\])/", $dumpedValue)) {
+            if (!preg_match("/\\\$this->(?:getEnv\('(?:\w++:)*+\w++'\)|targetDir\.'')/", $dumpedValue)) {
                 return sprintf('$this->parameters[%s]', $this->doExport($name));
             }
         }
@@ -1718,7 +1815,7 @@ EOF;
                     $code = sprintf('$this->%s[%s] = %s', $definition->isPublic() ? 'services' : 'privates', $this->doExport($id), $code);
                 }
                 $code = "($code)";
-            } elseif ($this->asFiles && !$this->isHotPath($definition)) {
+            } elseif ($this->asFiles && !$this->inlineFactories && !$this->isHotPath($definition)) {
                 $code = sprintf("\$this->load('%s.php')", $this->generateMethodName($id));
                 if (!$definition->isShared()) {
                     $factory = sprintf('$this->factories%s[%s]', $definition->isPublic() ? '' : "['service_container']", $this->doExport($id));
@@ -1819,7 +1916,7 @@ EOF;
         }
     }
 
-    private function getExpressionLanguage()
+    private function getExpressionLanguage(): ExpressionLanguage
     {
         if (null === $this->expressionLanguage) {
             if (!class_exists('Symfony\Component\ExpressionLanguage\ExpressionLanguage')) {
@@ -1846,7 +1943,7 @@ EOF;
         return $this->expressionLanguage;
     }
 
-    private function isHotPath(Definition $definition)
+    private function isHotPath(Definition $definition): bool
     {
         return $this->hotPathTag && $definition->hasTag($this->hotPathTag) && !$definition->isDeprecated();
     }
@@ -1861,7 +1958,7 @@ EOF;
             if (!$value = $edge->getSourceNode()->getValue()) {
                 continue;
             }
-            if ($edge->isLazy() || !$value->isShared()) {
+            if ($edge->isLazy() || !$value instanceof Definition || !$value->isShared()) {
                 return false;
             }
             $ids[$edge->getSourceNode()->getId()] = true;
@@ -1870,6 +1967,9 @@ EOF;
         return 1 === \count($ids);
     }
 
+    /**
+     * @return mixed
+     */
     private function export($value)
     {
         if (null !== $this->targetDirRegex && \is_string($value) && preg_match($this->targetDirRegex, $value, $matches, PREG_OFFSET_CAPTURE)) {
@@ -1879,8 +1979,10 @@ EOF;
             $dirname = $this->asFiles ? '$this->containerDir' : '__DIR__';
             $offset = 1 + $this->targetDirMaxMatches - \count($matches);
 
-            if ($this->asFiles || 0 < $offset) {
-                $dirname = sprintf('$this->targetDirs[%d]', $offset);
+            if (0 < $offset) {
+                $dirname = sprintf('\dirname(__DIR__, %d)', $offset + (int) $this->asFiles);
+            } elseif ($this->asFiles) {
+                $dirname = "\$this->targetDir.''"; // empty string concatenation on purpose
             }
 
             if ($prefix || $suffix) {
@@ -1893,6 +1995,9 @@ EOF;
         return $this->doExport($value, true);
     }
 
+    /**
+     * @return mixed
+     */
     private function doExport($value, bool $resolveEnv = false)
     {
         $shouldCacheValue = $resolveEnv && \is_string($value);
@@ -1925,5 +2030,38 @@ EOF;
         }
 
         return $export;
+    }
+
+    private function getAutoloadFile(): ?string
+    {
+        if (null === $this->targetDirRegex) {
+            return null;
+        }
+
+        foreach (spl_autoload_functions() as $autoloader) {
+            if (!\is_array($autoloader)) {
+                continue;
+            }
+
+            if ($autoloader[0] instanceof DebugClassLoader || $autoloader[0] instanceof LegacyDebugClassLoader) {
+                $autoloader = $autoloader[0]->getClassLoader();
+            }
+
+            if (!\is_array($autoloader) || !$autoloader[0] instanceof ClassLoader || !$autoloader[0]->findFile(__CLASS__)) {
+                continue;
+            }
+
+            foreach (get_declared_classes() as $class) {
+                if (0 === strpos($class, 'ComposerAutoloaderInit') && $class::getLoader() === $autoloader[0]) {
+                    $file = \dirname((new \ReflectionClass($class))->getFileName(), 2).'/autoload.php';
+
+                    if (preg_match($this->targetDirRegex.'A', $file)) {
+                        return $file;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

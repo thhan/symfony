@@ -60,7 +60,7 @@ class ChoiceTypeTest extends BaseTypeTest
         ],
     ];
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -73,28 +73,24 @@ class ChoiceTypeTest extends BaseTypeTest
         ];
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         parent::tearDown();
 
         $this->objectChoices = null;
     }
 
-    /**
-     * @expectedException \Symfony\Component\OptionsResolver\Exception\InvalidOptionsException
-     */
     public function testChoicesOptionExpectsArrayOrTraversable()
     {
+        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
         $this->factory->create(static::TESTED_TYPE, null, [
             'choices' => new \stdClass(),
         ]);
     }
 
-    /**
-     * @expectedException \Symfony\Component\OptionsResolver\Exception\InvalidOptionsException
-     */
     public function testChoiceLoaderOptionExpectsChoiceLoaderInterface()
     {
+        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
         $this->factory->create(static::TESTED_TYPE, null, [
             'choice_loader' => new \stdClass(),
         ]);
@@ -1731,7 +1727,9 @@ class ChoiceTypeTest extends BaseTypeTest
 
         $this->assertEquals([
             0 => new ChoiceView('a', 'a', 'A'),
+            1 => new ChoiceView('b', 'b', 'B'),
             2 => new ChoiceView('c', 'c', 'C'),
+            3 => new ChoiceView('d', 'd', 'D'),
         ], $view->vars['choices']);
         $this->assertEquals([
             1 => new ChoiceView('b', 'b', 'B'),
@@ -1750,9 +1748,11 @@ class ChoiceTypeTest extends BaseTypeTest
         $this->assertEquals([
             'Symfony' => new ChoiceGroupView('Symfony', [
                 0 => new ChoiceView('a', 'a', 'Bernhard'),
+                1 => new ChoiceView('b', 'b', 'Fabien'),
                 2 => new ChoiceView('c', 'c', 'Kris'),
             ]),
             'Doctrine' => new ChoiceGroupView('Doctrine', [
+                3 => new ChoiceView('d', 'd', 'Jon'),
                 4 => new ChoiceView('e', 'e', 'Roman'),
             ]),
         ], $view->vars['choices']);
@@ -2047,6 +2047,47 @@ class ChoiceTypeTest extends BaseTypeTest
             'Multiple' => [true, false],
             'Simple expanded' => [false, true],
             'Multiple expanded' => [true, true],
+        ];
+    }
+
+    /**
+     * @dataProvider expandedIsEmptyWhenNoRealChoiceIsSelectedProvider
+     */
+    public function testExpandedIsEmptyWhenNoRealChoiceIsSelected(bool $expected, $submittedData, bool $multiple, bool $required, $placeholder)
+    {
+        $options = [
+            'expanded' => true,
+            'choices' => [
+                'foo' => 'bar',
+            ],
+            'multiple' => $multiple,
+            'required' => $required,
+        ];
+
+        if (!$multiple) {
+            $options['placeholder'] = $placeholder;
+        }
+
+        $form = $this->factory->create(static::TESTED_TYPE, null, $options);
+
+        $form->submit($submittedData);
+
+        $this->assertSame($expected, $form->isEmpty());
+    }
+
+    public function expandedIsEmptyWhenNoRealChoiceIsSelectedProvider()
+    {
+        // Some invalid cases are voluntarily not tested:
+        //   - multiple with placeholder
+        //   - required with placeholder
+        return [
+            'Nothing submitted / single / not required / without a placeholder -> should be empty' => [true, null, false, false, null],
+            'Nothing submitted / single / not required / with a placeholder -> should not be empty' => [false, null, false, false, 'ccc'], // It falls back on the placeholder
+            'Nothing submitted / single / required / without a placeholder -> should be empty' => [true, null, false, true, null],
+            'Nothing submitted / single / required / with a placeholder -> should be empty' => [true, null, false, true, 'ccc'],
+            'Nothing submitted / multiple / not required / without a placeholder -> should be empty' => [true, null, true, false, null],
+            'Nothing submitted / multiple / required / without a placeholder -> should be empty' => [true, null, true, true, null],
+            'Placeholder submitted / single / not required / with a placeholder -> should not be empty' => [false, '', false, false, 'ccc'], // The placeholder is a selected value
         ];
     }
 }

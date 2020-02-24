@@ -27,7 +27,7 @@ class JsonLoginLdapFactory extends JsonLoginFactory
         return 'json-login-ldap';
     }
 
-    protected function createAuthProvider(ContainerBuilder $container, $id, $config, $userProviderId)
+    protected function createAuthProvider(ContainerBuilder $container, string $id, array $config, string $userProviderId)
     {
         $provider = 'security.authentication.provider.ldap_bind.'.$id;
         $definition = $container
@@ -37,8 +37,8 @@ class JsonLoginLdapFactory extends JsonLoginFactory
             ->replaceArgument(2, $id)
             ->replaceArgument(3, new Reference($config['service']))
             ->replaceArgument(4, $config['dn_string'])
-            ->replaceArgument(5, $config['search_dn'])
-            ->replaceArgument(6, $config['search_password'])
+            ->replaceArgument(6, $config['search_dn'])
+            ->replaceArgument(7, $config['search_password'])
         ;
 
         if (!empty($config['query_string'])) {

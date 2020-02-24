@@ -106,9 +106,17 @@ abstract class Descriptor implements DescriptorInterface
         $this->extensions = array_keys($this->extensions);
     }
 
-    protected function getOptionDefinition(OptionsResolver $optionsResolver, $option)
+    protected function getOptionDefinition(OptionsResolver $optionsResolver, string $option)
     {
-        $definition = [
+        $definition = [];
+
+        if ($info = $optionsResolver->getInfo($option)) {
+            $definition = [
+                'info' => $info,
+            ];
+        }
+
+        $definition += [
             'required' => $optionsResolver->isRequired($option),
             'deprecated' => $optionsResolver->isDeprecated($option),
         ];
@@ -167,7 +175,7 @@ abstract class Descriptor implements DescriptorInterface
         $this->extensionOptions = $filterByDeprecated($this->extensionOptions);
     }
 
-    private function getParentOptionsResolver(ResolvedFormTypeInterface $type)
+    private function getParentOptionsResolver(ResolvedFormTypeInterface $type): OptionsResolver
     {
         $this->parents[$class = \get_class($type->getInnerType())] = [];
 

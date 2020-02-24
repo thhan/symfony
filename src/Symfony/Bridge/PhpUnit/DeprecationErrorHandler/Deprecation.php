@@ -11,6 +11,7 @@
 
 namespace Symfony\Bridge\PhpUnit\DeprecationErrorHandler;
 
+use PHPUnit\Util\Test;
 use Symfony\Bridge\PhpUnit\Legacy\SymfonyTestsListenerFor;
 
 /**
@@ -27,41 +28,23 @@ class Deprecation
     const TYPE_INDIRECT = 'type_indirect';
     const TYPE_UNDETERMINED = 'type_undetermined';
 
-    /**
-     * @var array
-     */
-    private $trace;
-
-    /**
-     * @var string
-     */
+    private $trace = [];
     private $message;
-
-    /**
-     * @var ?string
-     */
     private $originClass;
-
-    /**
-     * @var ?string
-     */
     private $originMethod;
+    private $triggeringFile;
 
-    /**
-     * @var string one of the PATH_TYPE_* constants
-     */
-    private $triggeringFilePathType;
-
-    /** @var string[] absolute paths to vendor directories */
+    /** @var string[] Absolute paths to vendor directories */
     private static $vendors;
 
     /**
-     * @var string[] absolute paths to source or tests of the project. This
-     *               excludes cache directories, because it is based on
-     *               autoloading rules and cache systems typically do not use
-     *               those.
+     * @var string[] Absolute paths to source or tests of the project, cache
+     *               directories exlcuded because it is based on autoloading
+     *               rules and cache systems typically do not use those
      */
-    private static $internalPaths;
+    private static $internalPaths = [];
+
+    private $originalFilesStack;
 
     /**
      * @param string $message
@@ -76,19 +59,20 @@ class Deprecation
             // No-op
         }
         $line = $trace[$i];
-        $this->triggeringFilePathType = $this->getPathType($file);
+        $this->triggeringFile = $file;
         if (isset($line['object']) || isset($line['class'])) {
             if (isset($line['class']) && 0 === strpos($line['class'], SymfonyTestsListenerFor::class)) {
                 $parsedMsg = unserialize($this->message);
                 $this->message = $parsedMsg['deprecation'];
                 $this->originClass = $parsedMsg['class'];
                 $this->originMethod = $parsedMsg['method'];
+                $this->originalFilesStack = $parsedMsg['files_stack'];
                 // If the deprecation has been triggered via
                 // \Symfony\Bridge\PhpUnit\Legacy\SymfonyTestsListenerTrait::endTest()
                 // then we need to use the serialized information to determine
                 // if the error has been triggered from vendor code.
                 if (isset($parsedMsg['triggering_file'])) {
-                    $this->triggeringFilePathType = $this->getPathType($parsedMsg['triggering_file']);
+                    $this->triggeringFile = $parsedMsg['triggering_file'];
                 }
 
                 return;
@@ -152,13 +136,10 @@ class Deprecation
     }
 
     /**
-     * @param string $utilPrefix
-     *
      * @return bool
      */
-    public function isLegacy($utilPrefix)
+    public function isLegacy()
     {
-        $test = $utilPrefix.'Test';
         $class = $this->originatingClass();
         $method = $this->originatingMethod();
 
@@ -166,7 +147,22 @@ class Deprecation
             || 0 === strpos($method, 'provideLegacy')
             || 0 === strpos($method, 'getLegacy')
             || strpos($class, '\Legacy')
-            || \in_array('legacy', $test::getGroups($class, $method), true);
+            || \in_array('legacy', Test::getGroups($class, $method), true);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isMuted()
+    {
+        if ('Function ReflectionType::__toString() is deprecated' !== $this->message) {
+            return false;
+        }
+        if (isset($this->trace[1]['class'])) {
+            return 0 === strpos($this->trace[1]['class'], 'PHPUnit\\');
+        }
+
+        return false !== strpos($this->triggeringFile, \DIRECTORY_SEPARATOR.'vendor'.\DIRECTORY_SEPARATOR.'phpunit'.\DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -177,21 +173,16 @@ class Deprecation
      */
     public function getType()
     {
-        if (self::PATH_TYPE_SELF === $this->triggeringFilePathType) {
+        $triggeringFilePathType = $this->getPathType($this->triggeringFile);
+        if (self::PATH_TYPE_SELF === $triggeringFilePathType) {
             return self::TYPE_SELF;
         }
-        if (self::PATH_TYPE_UNDETERMINED === $this->triggeringFilePathType) {
+        if (self::PATH_TYPE_UNDETERMINED === $triggeringFilePathType) {
             return self::TYPE_UNDETERMINED;
         }
         $erroringFile = $erroringPackage = null;
-        foreach ($this->trace as $line) {
-            if (\in_array($line['function'], ['require', 'require_once', 'include', 'include_once'], true)) {
-                continue;
-            }
-            if (!isset($line['file'])) {
-                continue;
-            }
-            $file = $line['file'];
+
+        foreach ($this->getOriginalFilesStack() as $file) {
             if ('-' === $file || 'Standard input code' === $file || !realpath($file)) {
                 continue;
             }
@@ -213,6 +204,22 @@ class Deprecation
         }
 
         return self::TYPE_DIRECT;
+    }
+
+    private function getOriginalFilesStack()
+    {
+        if (null === $this->originalFilesStack) {
+            $this->originalFilesStack = [];
+            foreach ($this->trace as $frame) {
+                if (!isset($frame['file']) || \in_array($frame['function'], ['require', 'require_once', 'include', 'include_once'], true)) {
+                    continue;
+                }
+
+                $this->originalFilesStack[] = $frame['file'];
+            }
+        }
+
+        return $this->originalFilesStack;
     }
 
     /**
@@ -249,7 +256,7 @@ class Deprecation
     private static function getVendors()
     {
         if (null === self::$vendors) {
-            self::$vendors = [];
+            self::$vendors = $paths = [];
             foreach (get_declared_classes() as $class) {
                 if ('C' === $class[0] && 0 === strpos($class, 'ComposerAutoloaderInit')) {
                     $r = new \ReflectionClass($class);

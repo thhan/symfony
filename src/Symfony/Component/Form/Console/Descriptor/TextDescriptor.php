@@ -114,6 +114,7 @@ class TextDescriptor extends Descriptor
             ];
         }
         $map += [
+            'Info' => 'info',
             'Required' => 'required',
             'Default' => 'default',
             'Allowed types' => 'allowedTypes',
@@ -155,7 +156,7 @@ class TextDescriptor extends Descriptor
         return $tableRows;
     }
 
-    private function normalizeAndSortOptionsColumns(array $options)
+    private function normalizeAndSortOptionsColumns(array $options): array
     {
         foreach ($options as $group => $opts) {
             $sorted = false;

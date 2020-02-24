@@ -146,7 +146,9 @@ abstract class AbstractBrowser
     /**
      * Gets single server parameter for specified key.
      *
-     * @return string A value of the parameter
+     * @param mixed $default A default value when key is undefined
+     *
+     * @return mixed A value of the parameter
      */
     public function getServerParameter(string $key, $default = '')
     {
@@ -510,7 +512,7 @@ abstract class AbstractBrowser
     protected function createCrawlerFromContent(string $uri, string $content, string $type)
     {
         if (!class_exists('Symfony\Component\DomCrawler\Crawler')) {
-            return;
+            return null;
         }
 
         $crawler = new Crawler(null, $uri);

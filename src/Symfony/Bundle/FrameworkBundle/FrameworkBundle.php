@@ -28,13 +28,13 @@ use Symfony\Component\Cache\DependencyInjection\CachePoolPass;
 use Symfony\Component\Cache\DependencyInjection\CachePoolPrunerPass;
 use Symfony\Component\Config\Resource\ClassExistenceResource;
 use Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass;
-use Symfony\Component\Debug\ErrorHandler;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\Compiler\RegisterReverseContainerPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\ErrorRenderer\DependencyInjection\ErrorRendererPass;
+use Symfony\Component\ErrorHandler\ErrorHandler;
 use Symfony\Component\EventDispatcher\DependencyInjection\RegisterListenersPass;
 use Symfony\Component\Form\DependencyInjection\FormPass;
+use Symfony\Component\HttpClient\DependencyInjection\HttpClientPass;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass;
@@ -90,7 +90,6 @@ class FrameworkBundle extends Bundle
             KernelEvents::FINISH_REQUEST,
         ];
 
-        $container->addCompilerPass(new ErrorRendererPass());
         $container->addCompilerPass(new LoggerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, -32);
         $container->addCompilerPass(new RegisterControllerArgumentLocatorsPass());
         $container->addCompilerPass(new RemoveEmptyControllerArgumentLocatorsPass(), PassConfig::TYPE_BEFORE_REMOVING);
@@ -127,6 +126,7 @@ class FrameworkBundle extends Bundle
         $container->addCompilerPass(new TestServiceContainerRealRefPass(), PassConfig::TYPE_AFTER_REMOVING);
         $this->addCompilerPassIfExists($container, AddMimeTypeGuesserPass::class);
         $this->addCompilerPassIfExists($container, MessengerPass::class);
+        $this->addCompilerPassIfExists($container, HttpClientPass::class);
         $this->addCompilerPassIfExists($container, AddAutoMappingConfigurationPass::class);
         $container->addCompilerPass(new RegisterReverseContainerPass(true));
         $container->addCompilerPass(new RegisterReverseContainerPass(false), PassConfig::TYPE_AFTER_REMOVING);
@@ -139,7 +139,7 @@ class FrameworkBundle extends Bundle
         }
     }
 
-    private function addCompilerPassIfExists(ContainerBuilder $container, $class, $type = PassConfig::TYPE_BEFORE_OPTIMIZATION, $priority = 0)
+    private function addCompilerPassIfExists(ContainerBuilder $container, string $class, string $type = PassConfig::TYPE_BEFORE_OPTIMIZATION, int $priority = 0)
     {
         $container->addResource(new ClassExistenceResource($class));
 
